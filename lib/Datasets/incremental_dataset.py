@@ -1049,8 +1049,16 @@ def get_incremental_dataset(parent_class, args):
                 new_trainsets.append(self.trainset)
                 self.trainset = torch.utils.data.ConcatDataset(new_trainsets)
             elif generative_replay or openset_generative_replay:
-                # TODO:
-                raise NotImplementedError
+                # use generative model to replay old tasks and concatenate with new task's real data
+                new_trainsets = [self.trainsets.pop(j) for j in sorted_new_tasks]
+
+                genset = self.generate_seen_tasks(model, batch_size, len(self.trainset), writer, save_path,
+                                                  openset=openset_generative_replay,
+                                                  openset_threshold=openset_threshold,
+                                                  openset_tailsize=openset_tailsize,
+                                                  autoregression=autoregression)
+                new_trainsets.append(genset)
+                self.trainset = torch.utils.data.ConcatDataset(new_trainsets)
             else: #lower bound baseline (only see the new tasks data)
                 if(self.num_increment_tasks == 1):
                     self.trainset = self.trainsets.pop(new_tasks[0])
@@ -1066,6 +1074,60 @@ def get_incremental_dataset(parent_class, args):
             # update the train and val loaders
             self.train_loader, self.val_loader = self.get_dataset_loader(batch_size, workers, is_gpu)
             return
+
+        def generate_seen_tasks(self, model, batch_size, seen_dataset_size, writer, save_path,
+                                openset=False, openset_threshold=0.2, openset_tailsize=0.05,
+                                autoregression=False):
+            data = []
+            zs = []
+            targets = []
+
+            # flag to default to regular generative replay if openset fit is not successfull
+            openset_success = True
+
+            if openset:
+                raise NotImplementedError
+
+            if not openset or not openset_success:
+                print("Using generative model to replay old data")
+                for i in trange(0, int(seen_dataset_size/batch_size)):
+                    # sample from prior
+                    z_samples = torch.randn(batch_size, model.module.latent_dim).to(self.device)
+
+                    # calculate probabilistic decoder, generate data points
+                    gen = model.module.decode(z_samples)
+                    gen = torch.sigmoid(gen)
+                    if(autoregression):
+                        gen = model.module.pixelcnn.generate(gen)
+
+                    # classify the samples from the prior and set the label corrispondingly
+                    c1 = model.module.classifier(z_samples)
+                    c1 = torch.nn.functional.softmax(c1, dim=1)
+                    label = torch.argmax(c1, dim=1)
+                    data.append(gen.data.cpu())
+                    targets.append(label.data.cpu())
+
+                # need to detach from graph as otherwise the "require grad" will crash auto differentiation
+                data = torch.cat(data, dim=0)
+                targets = torch.cat(targets, dim=0)
+
+                # get a subsets for visualization
+                _, sd_idx = torch.sort(targets)
+                subset_idx = sd_idx[torch.floor(torch.arange(0, data.size(0), data.size(0) / self.vis_size)).long()]
+                viz_subset = data[subset_idx]
+
+                imgs = torchvision.utils.make_grid(viz_subset, nrow=int(math.sqrt(self.vis_size)), padding=5)
+                torchvision.utils.save_image(viz_subset, os.path.join(save_path, 'samples_seen_tasks_' +
+                                                                      str(len(self.seen_tasks) -
+                                                                          self.num_increment_tasks) + '.png'),
+                                             nrow=int(math.sqrt(self.vis_size)), padding=5)
+                writer.add_image('dataset_generation_snapshot', imgs, len(self.seen_tasks) -
+                                 self.num_increment_tasks)
+            
+            # return generated trainset
+            trainset = torch.utils.data.TensorDataset(data, targets)
+            return trainset
+
 
     # return corresponding class
     if args.cross_dataset:
