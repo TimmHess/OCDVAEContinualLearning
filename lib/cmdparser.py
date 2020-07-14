@@ -14,11 +14,18 @@ parser = argparse.ArgumentParser(description='PyTorch Variational Training')
 parser.add_argument('--dataset', default='MNIST', help='name of dataset')
 parser.add_argument('-j', '--workers', default=4, type=int, help='number of data loading workers (default: 4)')
 parser.add_argument('-p', '--patch-size', default=28, type=int, help='patch size for crops (default: 28)')
-parser.add_argument('--gray-scale', default=False, type=bool, help='use gray scale images (default: False). '
-                                                                   'If false, single channel images will be repeated '
-                                                                   'to three channels.')
+parser.add_argument('--gray-scale', default=False, action='store_true',
+                    help='use gray scale images (default: False). '
+                         'If false, single channel images will be repeated '
+                         'to three channels.')
 parser.add_argument('-noise', '--denoising-noise-value', default=0.25, type=float,
                     help='noise value for denoising. (float in range [0, 1]. Default: 0.25)')
+parser.add_argument('--train_path_to_root', type=str, default=None, 
+                    help='Path to root of training set when using incremental sequence')
+parser.add_argument('--val_path_to_root', type=str, default=None,
+                    help='Path to root of validation set when using incremental sequnece')
+parser.add_argument('--labelmap_file', type=str, default=None,
+                    help='Path to labelmap file for incremental sequence')
 
 # Architecture and weight-init
 parser.add_argument('-a', '--architecture', default='WRN', help='model architecture (default: WRN)')
@@ -38,7 +45,7 @@ parser.add_argument('-b', '--batch-size', default=128, type=int, help='mini-batc
 parser.add_argument('-lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate (default: 1e-3)')
 parser.add_argument('-bn', '--batch-norm', default=1e-5, type=float, help='batch normalization (default 1e-5)')
 parser.add_argument('-pf', '--print-freq', default=100, type=int, help='print frequency (default: 100)')
-parser.add_argument('-log', '--log-weights', default=False, type=bool,
+parser.add_argument('-log', '--log-weights', default=False, action='store_true',
                     help='Log weights and gradients to TensorBoard (default: False)')
 
 # Resuming training
@@ -55,26 +62,30 @@ parser.add_argument('--visualization-epoch', default=20, type=int, help='number 
                                                                         '(default: 20)')
 
 # Continual learning
-parser.add_argument('--incremental-data', default=False, type=bool,
+parser.add_argument('--incremental-data', default=False, action='store_true',
                     help='Convert dataloaders to class incremental ones')
-parser.add_argument('--train-incremental-upper-bound', default=False, type=bool,
+parser.add_argument('--incremental-instance', default=False, action='store_true',
+                    help='Convert dataloaders to instance incremental ones')
+parser.add_argument('--train-incremental-upper-bound', default=False, action='store_true',
                     help='Turn on class incremental training of upper bound baseline')
-parser.add_argument('--randomize-task-order', default=False, type=bool, help='randomizes the task order')
+parser.add_argument('--randomize-task-order', default=False, action='store_true',
+                    help='randomizes the task order')
 parser.add_argument('--load-task-order', default='', type=str, help='path to numpy array specifying task order')
 parser.add_argument('--num-base-tasks', default=1, type=int,
                     help='Number of tasks to start with for incremental learning (default: 1).'
                          'Maximum number of tasks has to be less than number of classes - 1.')
 parser.add_argument('--num-increment-tasks', default=2, type=int, help='Number of task to add at once')
 
-parser.add_argument('--cross-dataset', type=bool, default=False, help='do cross-dataset CL (default: False)')
+parser.add_argument('--cross-dataset', default=False, action='store_true',
+                    help='do cross-dataset CL (default: False)')
 parser.add_argument('--dataset-order', default='AudioMNIST, MNIST, FashionMNIST', type=str,
                     help='dataset order in cross-dataset CL (default: "AudioMNIST, MNIST, FashionMNIST")')
 
-parser.add_argument('-genreplay', '--generative-replay', default=False, type=bool,
+parser.add_argument('-genreplay', '--generative-replay', default=False, action='store_true',
                     help='Turn on generative replay for data from old tasks')
 
 # Open set arguments
-parser.add_argument('--openset-generative-replay', default=False, type=bool,
+parser.add_argument('--openset-generative-replay', default=False, action='store_true',
                     help='Turn on openset detection for generative replay')
 parser.add_argument('--openset-generative-replay-threshold', default=0.01, type=float,
                     help='Outlier probability threshold (float in range [0, 1]. Default: 0.01)')
@@ -89,13 +100,14 @@ parser.add_argument('--openset-datasets', default='FashionMNIST,AudioMNIST,KMNIS
 parser.add_argument('--percent-validation-outliers', default=0.05, type=float,
                     help='Assumed percentage of inherent outliers in the validation set of the original task. '
                          'default (0.05 -> 5%). Is used to find priors and threshold values for testing.')
-parser.add_argument('--calc-reconstruction', default=False, type=bool,
+parser.add_argument('--calc-reconstruction', default=False, action='store_true',
                     help='Turn on calculation of decoder. This option exists as calculating the decoder for multiple'
                          'samples can be computationally very expensive. Only turn this on if you are interested in'
                          'out-of-distribution detection according to reconstruction loss.')
 
 # PixelVAE
-parser.add_argument('--autoregression', default=False, type=bool, help='use PixelCNN decoder for generation')
+parser.add_argument('--autoregression', default=False, action='store_true',
+                    help='use PixelCNN decoder for generation')
 parser.add_argument('--out-channels', default=60, type=int, help='number of output channels of decoder when'
                                                                  'autoregression is used (default: 60)')
 parser.add_argument('--pixel-cnn-channels', default=60, type=int, help='num filters in PixelCNN convs (default: 60)')

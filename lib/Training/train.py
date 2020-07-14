@@ -103,7 +103,7 @@ def train(Dataset, model, criterion, epoch, optimizer, writer, device, args):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Recon Loss {recon_loss.val:.4f} ({recon_loss.avg:.4f})\t'
                   'KL {KLD_loss.val:.4f} ({KLD_loss.avg:.4f})'.format(
-                   epoch+1, i, len(Dataset.train_loader), batch_time=batch_time,
+                   epoch, i, len(Dataset.train_loader), batch_time=batch_time,
                    data_time=data_time, loss=losses, cl_loss=class_losses, top1=top1,
                    recon_loss=recon_losses, KLD_loss=kld_losses))
 

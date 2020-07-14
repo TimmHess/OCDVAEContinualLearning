@@ -943,8 +943,134 @@ def get_incremental_dataset(parent_class, args):
             trainset = torch.utils.data.TensorDataset(data, targets)
             return trainset
 
-    # return one of the two classes
+
+    class IncrementalInstanceDataset(parent_class):
+        def __init__(self, is_gpu, device, task_order, args):
+            super().__init__(is_gpu, args)
+
+            self.task_order = task_order
+            self.seen_tasks = []
+            self.num_base_tasks = args.num_base_tasks + 1
+            self.num_increment_tasks = args.num_increment_tasks
+            self.device = device
+            self.args = args
+
+            self.vis_size = 144
+
+            self.trainsets, self.valsets = {}, {}
+
+            self.num_images_per_dataset = [0]
+
+            # Split the parent dataset class into into datasets per sequence
+            self.__get_incremental_datasets()
+            
+            # Get the corresponding class datasets for the initial datasets as specified by number and order
+            self.trainset, self.valset = self.__get_initial_dataset()
+            # Get the respective initial class data loaders
+            self.train_loader, self.val_loader = self.get_dataset_loader(args.batch_size, args.workers, is_gpu)
+            return
+
+        def __get_incremental_datasets(self):
+            """
+            Load all datasets for all sequences into trainsets and valsets,
+            class targets can be left as they are since they will not be touched and 
+            no classes need to be incrementally added
+            """
+            datasets = [self.trainset, self.valset]
+            for j in range(2):
+                print("Loading:" + str(j))
+                for sequence_index in range(datasets[j].num_sequences):
+                    tensor_list = []
+                    target_list = []
+                    datasets[j].set_sequence_index(sequence_index)
+                    for i, (inp, target) in enumerate(datasets[j]):
+                        tensor_list.append(inp)
+                        target_list.append(target)
+                    
+                    # convert list to tensor
+                    tensor_list = torch.stack(tensor_list, dim=0)
+                    target_list = torch.LongTensor(target_list)
+                    
+                    if(j==0):
+                        self.trainsets[sequence_index] = torch.utils.data.TensorDataset(tensor_list, target_list)
+                    else:
+                        self.valsets[sequence_index] = torch.utils.data.TensorDataset(tensor_list, target_list)
+            return
+
+        def __get_initial_dataset(self):
+            # Pop the initial num_base_tasks many class indices from the task order and fill seen_tasks
+            for i in range(self.num_base_tasks):
+                # TODO: class to idx?
+                # append from task_order to seen tasks
+                self.seen_tasks.append(self.task_order.pop(0))
+
+            # Join/Concatenate the separate class datasets for the initial base tasks according to the just filled
+            # seen_task list
+            trainset = torch.utils.data.ConcatDataset([self.trainsets[j] for j in self.seen_tasks])
+            valset = torch.utils.data.ConcatDataset([self.valsets[j] for j in self.seen_tasks])
+
+            # Pop the already seen tasks so that they will not be used again
+            sorted_tasks = sorted(self.seen_tasks, reverse=True)
+            for i in sorted_tasks:
+                print("trainset", i)
+                self.trainsets.pop(i)
+                self.valsets.pop(i)
+            return trainset, valset
+
+
+        def get_dataset_loader(self, batch_size, workers, is_gpu):
+            train_loader = torch.utils.data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True,
+                            num_workers=workers, pin_memory=is_gpu)
+            
+            val_loader = torch.utils.data.DataLoader(self.valset, batch_size=batch_size, shuffle=True,
+                            num_workers=workers, pin_memory=is_gpu)
+            return train_loader, val_loader
+
+        def increment_tasks(self, model, batch_size, workers, writer, save_path, is_gpu,
+                            upper_bound_baseline=False, generative_replay=False, openset_generative_replay=False,
+                            openset_threshold=0.2, openset_tailsize=0.05, autoregression=False):
+            self.num_images_per_dataset.append(len(self.trainset))
+
+            new_tasks = []
+            # pop the next num_increment_tasks many task indices(datasets) from the task order list and
+            # add them to seen tasks
+            for i in range(self.num_increment_tasks):
+                idx = self.task_order.pop(0)
+                new_tasks.append(idx)
+                self.seen_tasks.append(idx)
+            # also construct the new task_to_idx table
+            # TODO:
+
+            # again sort the new tasks so they can be poped back to front from list of all sets
+            sorted_new_tasks = sorted(new_tasks, reverse=True)
+
+            if upper_bound_baseline:
+                new_trainsets = [self.trainsets.pop(j) for j in sorted_new_tasks]
+                new_trainsets.append(self.trainset)
+                self.trainset = torch.utils.data.ConcatDataset(new_trainsets)
+            elif generative_replay or openset_generative_replay:
+                # TODO:
+                raise NotImplementedError
+            else: #lower bound baseline (only see the new tasks data)
+                if(self.num_increment_tasks == 1):
+                    self.trainset = self.trainsets.pop(new_tasks[0])
+                else:
+                    self.trainset = torch.utils.data.ConcatDataset([self.trainsets.pop(j) for j in sorted_new_tasks])
+            
+            # get the validation sets and concatenate them to existing validation data
+            # note that validation is always conducted on 'real' data, while training can be done on generated samples
+            new_valsets = [self.valsets.pop(j) for j in sorted_new_tasks]
+            new_valsets.append(self.valset)
+            self.valset = torch.utils.data.ConcatDataset(new_valsets)
+
+            # update the train and val loaders
+            self.train_loader, self.val_loader = self.get_dataset_loader(batch_size, workers, is_gpu)
+            return
+
+    # return corresponding class
     if args.cross_dataset:
         return CrossDataset
+    elif args.incremental_instance:
+        return IncrementalInstanceDataset
     else:
         return IncrementalDataset

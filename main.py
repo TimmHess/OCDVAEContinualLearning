@@ -92,6 +92,7 @@ def main():
 
         # get the method to create the incremental dataste (inherits from the chosen data loader)
         inc_dataset_init_method = get_incremental_dataset(data_init_method, args)
+        print(inc_dataset_init_method)
 
         # different options for class incremental vs. cross-dataset experiments
         if args.cross_dataset:
@@ -133,6 +134,37 @@ def main():
                 # this branch will get active if num_increment_tasks is set to zero. This is useful when training
                 # any isolated upper bound with all datasets present from the start.
                 epoch_multiplier = 1.0
+
+        elif args.incremental_instance:
+            # instance incremental
+            # if specified load task oder from file
+            if args.load_task_order:
+                if os.path.isfile(args.load_task_order):
+                    # TODO
+                    pass
+                else:
+                    # if no file is found a random task order is created
+                    print("=> no task order found. Creating randomized task order")
+                    task_order = np.random.permutation(dataset.num_sequences).tolist()
+            else:
+                task_order = [] # sub-sequence order
+                for i in range(dataset.num_sequences):
+                    task_order.append(i)
+                if args.randomize_task_order:
+                    task_order = np.random.permutation(dataset.num_sequences).tolist()
+
+            # multiply epochs by number of tasks
+            if args.num_increment_tasks:
+                print("len task_order", len(task_order))
+                print("num_base_tasks", args.num_base_tasks)
+                print("num_increm_tasks", args.num_increment_tasks)
+                epoch_multiplier = ((len(task_order) - args.num_base_tasks) / args.num_increment_tasks) #+ 1
+            else:
+                # this branch will get active if num_increment_tasks is set to zero. This is useful when training
+                # any isolated upper bound with all datasets present from the start.
+                epoch_multiplier = 1.0
+            print("epoch multiplier:", epoch_multiplier)
+        
         else:
             # class incremental
             # if specified load task order from file
@@ -174,6 +206,7 @@ def main():
 
         # Get the incremental dataset
         dataset = inc_dataset_init_method(torch.cuda.is_available(), device, task_order, args)
+        print("dataset is loaded..")
     else:
         # add command line options to TensorBoard
         args_to_tensorboard(writer, args)
@@ -236,6 +269,8 @@ def main():
 
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
     while epoch < (args.epochs * epoch_multiplier):
+        print("")
+        print(epoch, args.epochs*epoch_multiplier)
         # visualize the latent space before each task increment and at the end of training if it is 2-D
         if epoch % args.epochs == 0 and epoch > 0 or (epoch + 1) % (args.epochs * epoch_multiplier) == 0:
             if model.module.latent_dim == 2:
@@ -268,13 +303,18 @@ def main():
                                         openset_threshold=args.openset_generative_replay_threshold,
                                         openset_tailsize=args.openset_weibull_tailsize,
                                         autoregression=args.autoregression)
-
+                print("Dataset incremente complete")
+                
                 # grow the classifier and increment the variable for number of overall classes so we can use it later
                 if args.cross_dataset:
                     grow_classifier(device, model.module.classifier,
                                     sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
                                     - model.module.num_classes, WeightInitializer)
                     model.module.num_classes = sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
+                elif args.incremental_instance:
+                    # Do not grow the classifier
+                    # TODO: check if new dataset contains more classes and grow accordingly
+                    pass
                 else:
                     model.module.num_classes += args.num_increment_tasks
                     grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
