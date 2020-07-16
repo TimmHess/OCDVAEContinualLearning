@@ -9,6 +9,8 @@ from lib.Training.evaluate import sample_per_class_zs
 import lib.Datasets.datasets as all_datasets
 from lib.Training.evaluate import eval_dataset
 
+import numpy as np
+
 
 def get_incremental_dataset(parent_class, args):
     """
@@ -969,6 +971,7 @@ def get_incremental_dataset(parent_class, args):
             
             # Get the corresponding class datasets for the initial datasets as specified by number and order
             self.trainset, self.valset = self.__get_initial_dataset()
+            
             # Get the respective initial class data loaders
             self.train_loader, self.val_loader = self.get_dataset_loader(args.batch_size, args.workers, is_gpu)
             return
@@ -1032,8 +1035,9 @@ def get_incremental_dataset(parent_class, args):
         def increment_tasks(self, model, batch_size, workers, writer, save_path, is_gpu,
                             upper_bound_baseline=False, generative_replay=False, openset_generative_replay=False,
                             openset_threshold=0.2, openset_tailsize=0.05, autoregression=False):
+            print(len(self.trainset))
             self.num_images_per_dataset.append(len(self.trainset))
-
+            
             new_tasks = []
             # pop the next num_increment_tasks many task indices(datasets) from the task order list and
             # add them to seen tasks
@@ -1054,14 +1058,15 @@ def get_incremental_dataset(parent_class, args):
             elif generative_replay or openset_generative_replay:
                 # use generative model to replay old tasks and concatenate with new task's real data
                 new_trainsets = [self.trainsets.pop(j) for j in sorted_new_tasks]
-
                 genset = self.generate_seen_tasks(model, batch_size, len(self.trainset), writer, save_path,
                                                   openset=openset_generative_replay,
                                                   openset_threshold=openset_threshold,
                                                   openset_tailsize=openset_tailsize,
                                                   autoregression=autoregression)
+                print("genset", len(genset))
                 new_trainsets.append(genset)
                 self.trainset = torch.utils.data.ConcatDataset(new_trainsets)
+                print("combined trainset", len(self.trainset))
             else: #lower bound baseline (only see the new tasks data)
                 if(self.num_increment_tasks == 1):
                     self.trainset = self.trainsets.pop(new_tasks[0])
@@ -1138,16 +1143,24 @@ def get_incremental_dataset(parent_class, args):
                     print("Using generative model to replay old data with openset detection")
                     # set class counters to count amount of generations
                     class_counters = [0] * num_seen_classes
+                    print("class_counter len", len(class_counters))
 
                     # calculate number of samples per class according to original dataset sizes
-                    samples_per_class = []
+                    #samples_per_class = []
+                    samples_per_class = np.array([0] * self.num_classes)
                     for i in range(len(self.num_images_per_dataset) - 1):
-                        samples_per_class.append([int(math.ceil((self.num_images_per_dataset[i+1] -
+                        #samples_per_class.append([int(math.ceil((self.num_images_per_dataset[i+1] -
+                        #                                         self.num_images_per_dataset[i]) /
+                        #                                        self.num_classes))] *
+                        #                         self.num_classes)
+                        samples_per_class += np.array([int(math.ceil((self.num_images_per_dataset[i+1] -
                                                                  self.num_images_per_dataset[i]) /
-                                                                self.num_classes))] *
-                                                 self.num_classes)
-                    samples_per_class = [item for sublist in samples_per_class for item in sublist]
+                                                                self.num_classes))] * self.num_classes)
 
+                    #samples_per_class = [item for sublist in samples_per_class for item in sublist]
+                    samples_per_class = list(samples_per_class)
+                    print("samples_per_class", samples_per_class)
+                    
                     openset_attempts = 0
 
                     # progress bar
@@ -1181,6 +1194,7 @@ def get_incremental_dataset(parent_class, args):
 
                         # increment the number of open set attempts
                         openset_attempts += 1
+                        #print(openset_attempts)
 
                         # time out if none of the samples pass the above test. This can happen if either the
                         # approximate posterior has not been optimized properly and is very far away from the prior

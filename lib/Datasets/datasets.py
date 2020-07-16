@@ -1010,7 +1010,6 @@ class SVHN:
 
 class IncrementalInstanceSet:
     def __init__(self, is_gpu, args):
-
         self.trainset, self.valset = self.get_dataset(args)
         
         self.num_classes = self.trainset.num_classes
@@ -1027,6 +1026,38 @@ class IncrementalInstanceSet:
 
         valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
             args.patch_size)
+        return trainset, valset
+
+    def get_dataset_loader(self, batch_size, workers, is_gpu):
+        train_loader = torch.utils.data.DataLoader(
+            self.trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=workers, pin_memory=is_gpu)
+
+        val_loader = torch.utils.data.DataLoader(
+            self.valset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=workers, pin_memory=is_gpu)
+        return train_loader, val_loader
+
+
+class IncrementalClassificationSet:
+    def __init__(self, is_gpu, args):
+        self.trainset, self.valset = self.get_dataset(args)
+        
+        self.num_classes = self.trainset.num_classes
+        self.num_sequences = self.trainset.num_sequences
+        self.class_to_idx = self.trainset.class_to_idx
+        
+        self.train_loader, self.val_loader = self.get_dataset_loader(args.batch_size, args.workers, is_gpu)
+        return
+
+    def get_dataset(self, args):
+        trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
+            args.patch_size, use_single_container=True)
+
+        valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
+            args.patch_size, use_single_container=True)
         return trainset, valset
 
     def get_dataset_loader(self, batch_size, workers, is_gpu):

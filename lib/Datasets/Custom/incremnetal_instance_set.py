@@ -16,9 +16,11 @@ from PIL import Image
 
 
 class ClassificationSequence(data.Dataset):
-    def __init__(self, path_to_root, labelmap_file, patch_size):
+    def __init__(self, path_to_root, labelmap_file, patch_size, use_single_container=False):
         self.path_to_root = path_to_root
         self.patch_size = patch_size
+
+        self.use_single_container = use_single_container
 
         # Dict mapping string to label
         self.label_dict = self.__load_label_dict(labelmap_file)
@@ -55,25 +57,28 @@ class ClassificationSequence(data.Dataset):
         sub_sequences_dirs = [f.name for f in os.scandir(self.path_to_root) if f.is_dir()]
         #print("subsequence_dirs", sub_sequences_dirs)
         
+        data = []
         # For each sub-sequence dir
         for sub_sequence_dir in sub_sequences_dirs:
-            data = []
-            #print("curr sub_sequenc_dir",sub_sequence_dir)
             # Get all sub dirs (a.k.a. classes)
             class_name_dirs = [f.name for f in os.scandir(self.path_to_root+sub_sequence_dir+"/") if f.is_dir()]
-            #print("class_name_dirs", class_name_dirs)
     
             # For each class get the respective label from labelmap 
             for class_name in class_name_dirs:
                 label = self.label_dict[class_name]
-                #print("class_name",class_name,label)
                 # Read all paths to list (path_to_img, label)
-                path = self.path_to_root + sub_sequence_dir + "/" + class_name + "/"
-                #print("path", path)    
+                path = self.path_to_root + sub_sequence_dir + "/" + class_name + "/"  
                 for file in os.listdir(path):
-                    #print(path+file)
                     data.append((path + file, label))
             
+            if(not self.use_single_container):
+                # Store data of this sequence
+                self.sequence_data.append(data)
+                # reset data 
+                data = []
+
+        # Store data of all sequences
+        if(self.use_single_container):
             self.sequence_data.append(data)
         return
 
