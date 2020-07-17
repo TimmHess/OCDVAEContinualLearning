@@ -302,6 +302,12 @@ def main():
                 print('Saving the last checkpoint from the previous task ...')
                 save_task_checkpoint(save_path, epoch // args.epochs)
 
+                # track mu and std for regularization
+                if args.use_kl_regularization:
+                    print("Calculating task's mu and std for kl regularization")
+                    prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
+                    set_previous_mu_and_std(model, prev_mu, prev_std)
+
                 print("Incrementing dataset ...")
                 dataset.increment_tasks(model, args.batch_size, args.workers, writer, save_path,
                                         is_gpu=torch.cuda.is_available(),
@@ -339,12 +345,6 @@ def main():
 
         # evaluate on validation set
         prec, loss = validate(dataset, model, criterion, epoch, writer, device, save_path, args)
-
-        # track mu and std for regularization
-        if args.use_kl_regularization:
-            print("Calculating previous task's mu and std for kl regularization")
-            prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
-            set_previous_mu_and_std(model, prev_mu, prev_std)
 
         # remember best prec@1 and save checkpoint
         is_best = loss < best_loss
