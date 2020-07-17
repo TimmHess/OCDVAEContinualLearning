@@ -133,6 +133,10 @@ class MLP(nn.Module):
         self.num_samples = args.var_samples
         self.latent_dim = args.var_latent_dim
 
+        # Previous mu and std
+        self.prev_mu = torch.zeros(self.latent_dim).to(device)
+        self.prev_std = torch.ones(self.latent_dim).to(device)
+
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleLinearLayer(1, self.num_colors * (self.patch_size ** 2), 400,
                                                  batch_norm=self.batch_norm)),
@@ -382,6 +386,10 @@ class WRN(nn.Module):
 
         self.num_samples = args.var_samples
         self.latent_dim = args.var_latent_dim
+
+        # Previous mu and std
+        self.prev_mu = torch.zeros(self.latent_dim).to(device)
+        self.prev_std = torch.ones(self.latent_dim).to(device)
 
         self.nChannels = [args.wrn_embedding_size, 16 * self.widen_factor, 32 * self.widen_factor,
                           64 * self.widen_factor]
