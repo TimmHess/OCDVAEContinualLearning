@@ -74,9 +74,14 @@ def get_incremental_dataset(parent_class, args):
 
             # Split the parent dataset class into into datasets per class
             self.__get_incremental_datasets()
+            for key in self.trainsets:
+                print(key, len(self.trainsets[key]))
 
             # Get the corresponding class datasets for the initial datasets as specified by number and order
             self.trainset, self.valset = self.__get_initial_dataset()
+            print("len trainset", len(self.trainset))
+            print(self.class_to_idx)
+
             # Get the respective initial class data loaders
             self.train_loader, self.val_loader = self.get_dataset_loader(args.batch_size, args.workers, is_gpu)
 
@@ -1125,13 +1130,17 @@ def get_incremental_dataset(parent_class, args):
                                                                    self.args.distance_function)
                 # # determine tailsize according to set percentage and dataset size. As in the incremental
                 # class scenario it is assumed that the number of samples per class per dataset is balanced.
-                tailsizes = []
+                #tailsizes = []
+                tailsizes = np.array([0] * self.num_classes)
                 for i in range(len(self.num_images_per_dataset) - 1):
-                    tailsizes.append([int(((self.num_images_per_dataset[i+1] - self.num_images_per_dataset[i]) *
-                                           openset_tailsize) / self.num_classes)] *
-                                     self.num_classes)
+                    #tailsizes.append([int(((self.num_images_per_dataset[i+1] - self.num_images_per_dataset[i]) *
+                    #                       openset_tailsize) / self.num_classes)] *
+                    #                 self.num_classes)
+                    tailsizes += np.array([int(((self.num_images_per_dataset[i+1] - self.num_images_per_dataset[i]) *
+                                           openset_tailsize) / self.num_classes)] * self.num_classes)
                 # extend the tailsize for each dataset to all of its classes (assuming that each dataset is balanced)
-                tailsizes = [item for sublist in tailsizes for item in sublist]
+                #tailsizes = [item for sublist in tailsizes for item in sublist]
+                tailsizes = list(tailsizes)
                 print("Fitting Weibull models with tailsizes: ", tailsizes)
                 # fit the weibull models
                 weibull_models, valid_weibull = mr.fit_weibull_models(train_distances_to_mu, tailsizes)
