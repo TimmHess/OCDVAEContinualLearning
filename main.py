@@ -50,16 +50,18 @@ def main():
     # if CUDA is found then device is set accordingly
     if torch.cuda.is_available():
         # Get number of available device
-        num_devices = torch.cuda.is_available()
+        num_devices = torch.cuda.device_count()
         # Check if cuda ids provided are in range of available devices
+        print(args.cuda_device_ids)
         for device_id in args.cuda_device_ids:
             if(device_id >= num_devices):
                 print("Cuda device id " + str(device_id) + " is out of bounds for " + str(num_devices) + " available devices")
                 raise IndexError
         # Set default device to be the first device in device list
-        device = device("cuda:"+str(args.cuda_device_ids[0]))
+        device = torch.device("cuda:"+str(args.cuda_device_ids[0]))
+
     else:
-        device = device("cpu")
+        device = torch.device("cpu")
     
     #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
