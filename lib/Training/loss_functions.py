@@ -1,6 +1,14 @@
 import torch
 import torch.nn as nn
 
+def get_kl(m, v, m0, v0):
+    # numerical value for stability of log computation
+    eps = 1e-8
+
+    constTerm = -0.5 * m.numel()
+    logStdDiff = 0.5 * torch.sum(torch.log(eps+v0**2)-torch.log(eps+v**2))
+    muDiffTerm = 0.5 * torch.sum((v**2 + (m0-m)**2) / v0**2)
+    return (constTerm + logStdDiff + muDiffTerm) / torch.numel(m)
 
 def unified_loss_function(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args):
     """
@@ -53,5 +61,11 @@ def unified_loss_function(output_samples_classification, target, output_samples_
 
     # Compute the KL divergence, normalized by latent dimensionality
     kld = -0.5 * torch.sum(1 + torch.log(eps + std ** 2) - (mu ** 2) - (std ** 2)) / torch.numel(mu)
+
+    # DEBUG
+    #mu0 = torch.zeros_like(mu)
+    #std0 = torch.ones_like(std)
+    #kld_test = get_kl(mu, std, mu0, std0)
+    #print(kld.cpu().item(), kld_test.cpu().item())
 
     return cl, rl, kld
