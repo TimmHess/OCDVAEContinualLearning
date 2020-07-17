@@ -84,6 +84,9 @@ parser.add_argument('--dataset-order', default='AudioMNIST, MNIST, FashionMNIST'
 parser.add_argument('-genreplay', '--generative-replay', default=False, action='store_true',
                     help='Turn on generative replay for data from old tasks')
 
+parser.add_argument('--use-kl-regularization', default=False, action='store_true',
+                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+
 # Open set arguments
 parser.add_argument('--openset-generative-replay', default=False, action='store_true',
                     help='Turn on openset detection for generative replay')

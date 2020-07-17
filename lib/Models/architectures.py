@@ -54,6 +54,11 @@ def get_feat_size(block, spatial_size, ncolors=3):
 
     return num_feat, spatial_dim_x, spatial_dim_y
 
+def set_previous_mu_and_std(model, prev_mu, prev_std):
+    model.prev_mu = prev_mu
+    model.prev_std = prev_std
+    return
+
 
 class SingleConvLayer(nn.Module):
     """
@@ -212,6 +217,10 @@ class DCNN(nn.Module):
         self.num_samples = args.var_samples
         self.latent_dim = args.var_latent_dim
 
+        # Previous mu and std
+        self.prev_mu = torch.zeros(self.latent_dim).to(device)
+        self.prev_std = torch.ones(self.latent_dim).to(device)
+
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleConvLayer(1, self.num_colors, 128, kernel_size=4, stride=2, padding=1,
                                                batch_norm=self.batch_norm)),
@@ -229,6 +238,7 @@ class DCNN(nn.Module):
                                    self.latent_dim, bias=False)
         self.latent_std = nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels,
                                     self.latent_dim, bias=False)
+        
 
         self.classifier = nn.Sequential(nn.Linear(self.latent_dim, num_classes, bias=False))
 

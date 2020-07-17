@@ -24,11 +24,12 @@ from lib.Models.architectures import grow_classifier
 from lib.cmdparser import parser
 from lib.Training.train import train
 from lib.Training.validate import validate
-from lib.Training.loss_functions import unified_loss_function as criterion
 from lib.Utility.utils import save_checkpoint, save_task_checkpoint
 from lib.Training.evaluate import get_latent_embedding
+from lib.Training.evaluate import get_mu_and_std
 from lib.Utility.visualization import args_to_tensorboard
 from lib.Utility.visualization import visualize_dataset_in_2d_embedding
+from lib.Models.architectures import set_previous_mu_and_std
 
 
 # Comment this if CUDNN benchmarking is not desired
@@ -78,6 +79,13 @@ def main():
     log = open(log_file, "a")
     for arg in vars(args):
         log.write(arg + ':' + str(getattr(args, arg)) + '\n')
+
+    # Initialize criterion
+    if args.use_kl_regularization:
+        from lib.Training.loss_functions import unified_loss_function_kl_regularized as criterion
+    else:
+        from lib.Training.loss_functions import unified_loss_function as criterion
+
 
     # Dataset loading
     data_init_method = getattr(datasets, args.dataset)
@@ -331,6 +339,12 @@ def main():
 
         # evaluate on validation set
         prec, loss = validate(dataset, model, criterion, epoch, writer, device, save_path, args)
+
+        # track mu and std for regularization
+        if args.use_kl_regularization:
+            print("Calculating previous task's mu and std for kl regularization")
+            prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
+            set_previous_mu_and_std(model, prev_mu, prev_std)
 
         # remember best prec@1 and save checkpoint
         is_best = loss < best_loss

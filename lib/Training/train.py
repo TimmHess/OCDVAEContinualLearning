@@ -67,8 +67,12 @@ def train(Dataset, model, criterion, epoch, optimizer, writer, device, args):
             recon_target = (recon_target * 255).long()
 
         # calculate loss
-        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                     device, args)
+        if args.use_kl_regularization:
+            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                        model.module.prev_mu, model.module.prev_std, device, args)
+        else:
+            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                        device, args)
 
         # add the individual loss components together and weight the KL term.
         loss = class_loss + recon_loss + args.var_beta * kld_loss

@@ -44,6 +44,37 @@ def get_latent_embedding(model, data_loader, num_classes, device):
 
     return zs
 
+def get_mu_and_std(model, data_loader, device):
+    """
+    Calculates mu and std from the given dataset
+
+    Parameters:
+        model (torch.nn.module): Trained model.
+        data_loader (torch.utils.data.DataLoader): The dataset loader.
+        num_classes (int): Numbe of classes.
+        device (str): Device to compute on.
+
+    Returns:
+        torch.Tensor: mu vector
+        torch.Tensor: std vector
+    """
+    # switch to evaluation mode
+    model.eval()
+    mu = []
+    std = []
+    with torch.no_grad():
+        for j, (inputs, classes) in enumerate(data_loader):
+            inputs, classes = inputs.to(device), classes.to(device)
+
+            encoded_mu, encoded_std = model.module.encode(inputs)
+            mu.append(encoded_mu.mean(dim=0))
+            std.append(encoded_std.mean(dim=0))
+
+    mu = torch.stack(mu, dim=0).mean(dim=0)
+    std = torch.stack(std, dim=0).mean(dim=0)
+
+    return mu, std
+
 
 def eval_dataset(model, data_loader, num_classes, device, samples=1, calc_reconstruction=False, autoregression=False):
     """
