@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 
 def get_kl(m, v, m0, v0):
+    # adapted from: https://github.com/bunkerj/mlmi4-vcl/blob/master/src/KL.py
+
     # numerical value for stability of log computation
     eps = 1e-8
 
