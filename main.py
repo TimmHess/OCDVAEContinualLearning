@@ -48,22 +48,7 @@ def main():
 
     # Check whether GPU is available and can be used
     # if CUDA is found then device is set accordingly
-    if torch.cuda.is_available():
-        # Get number of available device
-        num_devices = torch.cuda.device_count()
-        # Check if cuda ids provided are in range of available devices
-        print(args.cuda_device_ids)
-        for device_id in args.cuda_device_ids:
-            if(device_id >= num_devices):
-                print("Cuda device id " + str(device_id) + " is out of bounds for " + str(num_devices) + " available devices")
-                raise IndexError
-        # Set default device to be the first device in device list
-        device = torch.device("cuda:"+str(args.cuda_device_ids[0]))
-
-    else:
-        device = torch.device("cpu")
-    
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Launch a writer for the tensorboard summary writer instance
     save_path = 'runs/' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_' + args.dataset + '_' + args.architecture +\
@@ -260,7 +245,7 @@ def main():
                                   padding=args.pixel_cnn_kernel_size//2)
 
     # Parallel container for multi GPU use and cast to available device
-    model = torch.nn.DataParallel(model, device_ids=args.cuda_device_ids).to(device)
+    model = torch.nn.DataParallel(model).to(device)
     print(model)
 
     # Initialize the weights of the model, by default according to He et al.

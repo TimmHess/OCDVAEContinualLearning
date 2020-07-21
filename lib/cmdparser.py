@@ -47,8 +47,6 @@ parser.add_argument('-bn', '--batch-norm', default=1e-5, type=float, help='batch
 parser.add_argument('-pf', '--print-freq', default=100, type=int, help='print frequency (default: 100)')
 parser.add_argument('-log', '--log-weights', default=False, action='store_true',
                     help='Log weights and gradients to TensorBoard (default: False)')
-parser.add_argument('--cuda-device-ids', type=int, nargs="+", default=[0],
-                    help='Cuda device ids used for training. Multiple supported by DataParallel')
 
 # Resuming training
 parser.add_argument('--resume', default='', type=str, help='path to model to load/resume from(default: none). '
