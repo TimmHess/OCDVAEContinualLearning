@@ -151,9 +151,9 @@ def main():
                     # TODO
                     pass
                 else:
-                    # if no file is found a random task order is created
-                    print("=> no task order found. Creating randomized task order")
-                    task_order = np.random.permutation(dataset.num_sequences).tolist()
+                    # load task order from cmd
+                    task_order = args.load_task_order.split(",")
+                    task_order = [int(x) for x in task_order]
             else:
                 task_order = [] # sub-sequence order
                 for i in range(dataset.num_sequences):
