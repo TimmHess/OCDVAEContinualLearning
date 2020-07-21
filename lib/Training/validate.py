@@ -9,7 +9,7 @@ from lib.Utility.visualization import visualize_confusion
 from lib.Utility.visualization import visualize_image_grid
 
 
-def validate(Dataset, model, criterion, epoch, writer, device, save_path, args):
+def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_path, args):
     """
     Evaluates/validates the model
 
@@ -200,14 +200,21 @@ def validate(Dataset, model, criterion, epoch, writer, device, save_path, args):
                        top1=top1, recon_loss=recon_losses_nat, KLD_loss=kld_losses))
 
     # TensorBoard summary logging
-    writer.add_scalar('validation/val_precision@1', top1.avg, epoch)
-    writer.add_scalar('validation/val_average_loss', losses.avg, epoch)
-    writer.add_scalar('validation/val_class_loss', class_losses.avg, epoch)
-    writer.add_scalar('validation/val_recon_loss_nat', recon_losses_nat.avg, epoch)
-    writer.add_scalar('validation/val_KLD', kld_losses.avg, epoch)
+    #writer.add_scalar('validation/val_precision@1', top1.avg, epoch)
+    #writer.add_scalar('validation/val_average_loss', losses.avg, epoch)
+    #writer.add_scalar('validation/val_class_loss', class_losses.avg, epoch)
+    #writer.add_scalar('validation/val_recon_loss_nat', recon_losses_nat.avg, epoch)
+    #writer.add_scalar('validation/val_KLD', kld_losses.avg, epoch)
+
+    writer.add_scalar('validation/val_precision@1', top1.avg, iteration[0])
+    writer.add_scalar('validation/val_average_loss', losses.avg, iteration[0])
+    writer.add_scalar('validation/val_class_loss', class_losses.avg, iteration[0])
+    writer.add_scalar('validation/val_recon_loss_nat', recon_losses_nat.avg, iteration[0])
+    writer.add_scalar('validation/val_KLD', kld_losses.avg, iteration[0])
 
     if args.autoregression:
-        writer.add_scalar('validation/val_recon_loss_bits_per_dim', recon_losses_bits_per_dim.avg, epoch)
+        #writer.add_scalar('validation/val_recon_loss_bits_per_dim', recon_losses_bits_per_dim.avg, epoch)
+        writer.add_scalar('validation/val_recon_loss_bits_per_dim', recon_losses_bits_per_dim.avg, iteration[0])
 
     print(' * Validation: Loss {loss.avg:.5f} Prec@1 {top1.avg:.3f}'.format(loss=losses, top1=top1))
 

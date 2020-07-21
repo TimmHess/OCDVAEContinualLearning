@@ -257,6 +257,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
 
     epoch = 0
+    iteration = [0] # needs to be type list to be passed as reference
     best_prec = 0
     best_loss = random.getrandbits(128)
 
@@ -341,10 +342,10 @@ def main():
                 model.module.seen_tasks = dataset.seen_tasks
 
         # train
-        train(dataset, model, criterion, epoch, optimizer, writer, device, args)
+        train(dataset, model, criterion, epoch, iteration, optimizer, writer, device, args)
 
         # evaluate on validation set
-        prec, loss = validate(dataset, model, criterion, epoch, writer, device, save_path, args)
+        prec, loss = validate(dataset, model, criterion, epoch, iteration, writer, device, save_path, args)
 
         # remember best prec@1 and save checkpoint
         is_best = loss < best_loss

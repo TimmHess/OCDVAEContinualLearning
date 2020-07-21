@@ -4,7 +4,7 @@ from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy
 
 
-def train(Dataset, model, criterion, epoch, optimizer, writer, device, args):
+def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device, args):
     """
     Trains/updates the model for one epoch on the training dataset.
 
@@ -111,12 +111,21 @@ def train(Dataset, model, criterion, epoch, optimizer, writer, device, args):
                    data_time=data_time, loss=losses, cl_loss=class_losses, top1=top1,
                    recon_loss=recon_losses, KLD_loss=kld_losses))
 
+        # increase iteration
+        iteration[0] += 1
+
     # TensorBoard summary logging
-    writer.add_scalar('training/train_precision@1', top1.avg, epoch)
-    writer.add_scalar('training/train_average_loss', losses.avg, epoch)
-    writer.add_scalar('training/train_KLD', kld_losses.avg, epoch)
-    writer.add_scalar('training/train_class_loss', class_losses.avg, epoch)
-    writer.add_scalar('training/train_recon_loss', recon_losses.avg, epoch)
+    #writer.add_scalar('training/train_precision@1', top1.avg, epoch)
+    #writer.add_scalar('training/train_average_loss', losses.avg, epoch)
+    #writer.add_scalar('training/train_KLD', kld_losses.avg, epoch)
+    #writer.add_scalar('training/train_class_loss', class_losses.avg, epoch)
+    #writer.add_scalar('training/train_recon_loss', recon_losses.avg, epoch)
+
+    writer.add_scalar('training/train_precision@1', top1.avg, iteration[0])
+    writer.add_scalar('training/train_average_loss', losses.avg, iteration[0])
+    writer.add_scalar('training/train_KLD', kld_losses.avg, iteration[0])
+    writer.add_scalar('training/train_class_loss', class_losses.avg, iteration[0])
+    writer.add_scalar('training/train_recon_loss', recon_losses.avg, iteration[0])
 
     # If the log weights argument is specified also add parameter and gradient histograms to TensorBoard.
     if args.log_weights:
