@@ -327,6 +327,7 @@ def main():
                                     - model.module.num_classes, WeightInitializer)
                     model.module.num_classes = sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
                 elif args.incremental_instance:
+                    print(len(dataset.train_loader), len(dataset.val_loader))
                     # Do not grow the classifier
                     # TODO: check if new dataset contains more classes and grow accordingly
                     pass

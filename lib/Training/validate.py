@@ -52,7 +52,7 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
     batch_time = AverageMeter()
     top1 = AverageMeter()
-
+    
     # confusion matrix
     confusion = ConfusionMeter(model.module.num_classes, normalized=True)
 
@@ -145,7 +145,7 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
             # if we are learning continually, we need to calculate the base and new reconstruction losses at the end
             # of each task increment.
-            if args.incremental_data and ((epoch + 1) % args.epochs == 0 and epoch > 0):
+            if args.incremental_data and not args.incremental_instance and ((epoch + 1) % args.epochs == 0 and epoch > 0):
                 for j in range(inp.size(0)):
                     # get the number of classes for cross-dataset or class incremental scenarios.
                     if args.cross_dataset:
@@ -226,8 +226,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
         else:
             visualize_confusion(writer, epoch + 1, confusion.value(), Dataset.class_to_idx, save_path)
 
-        # If we are in a continual learning scenario, also use the confusion matrix to extract base and new precision.
-        if args.incremental_data:
+        # If we are in a continual learning scenario (which is not incremental instance), also use the confusion matrix to extract base and new precision.
+        if args.incremental_data and not args.incremental_instance:
             prec1_base = 0.0
             prec1_new = 0.0
             if args.cross_dataset:
@@ -279,5 +279,189 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                   'Base Recon Loss {recon_losses_base_nat.avg:.3f} New Recon Loss {recon_losses_new_nat.avg:.3f}'
                   .format(prec1_base=100*prec1_base, prec1_new=100*prec1_new,
                           recon_losses_base_nat=recon_losses_base_nat, recon_losses_new_nat=recon_losses_new_nat))
+        
 
+        # For incremental instances we need to evaluate base_validation set and new_validation set
+        if args.incremental_instance:
+            prec1_base = 0.0
+            prec1_new = 0.0
+            top1_base = AverageMeter()
+            top1_new = AverageMeter()
+
+            # Base
+            print("\n Computing Base Task Validation \n")
+            with torch.no_grad():
+                for i, (inp, target) in enumerate(Dataset.base_valset_loader):
+                    inp = inp.to(device)
+                    target = target.to(device)
+
+                    recon_target = inp
+                    class_target = target
+
+                    # compute output
+                    class_samples, recon_samples, mu, std = model(inp)
+
+                    #for autoregressive models convert the target to 0-255 integers and compute the autoregressive decoder
+                    #for each sample
+                    if args.autoregression:
+                        recon_target = (recon_target * 255).long()
+                        recon_samples_autoregression = torch.zeros(recon_samples.size(0), inp.size(0), 256, inp.size(1),
+                                                                inp.size(2), inp.size(3)).to(device)
+                        for j in range(model.module.num_samples):
+                            recon_samples_autoregression[j] = model.module.pixelcnn(
+                                inp, torch.sigmoid(recon_samples[j])).contiguous()
+                        recon_samples = recon_samples_autoregression
+
+                    # compute loss
+                    if args.use_kl_regularization:
+                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                                model.module.prev_mu, model.module.prev_std, device, args)
+                    else:
+                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                                    device, args)
+
+                    # For autoregressive models also update the bits per dimension value, converted from the obtained nats
+                    if args.autoregression:
+                        recon_losses_bits_per_dim.update(recon_loss.item() * math.log2(math.e), inp.size(0))
+
+                    # take mean to compute accuracy
+                    # (does nothing if there isn't more than 1 sample per input other than removing dummy dimension)
+                    class_output = torch.mean(class_samples, dim=0)
+                    recon_output = torch.mean(recon_samples, dim=0)
+
+                    # measure accuracy, record loss, fill confusion matrix
+                    prec1_base = accuracy(class_output, target)[0]
+                    top1_base.update(prec1_base.item(), inp.size(0))
+
+                    # for autoregressive models generate reconstructions by sequential sampling from the
+                    # multinomial distribution (Reminder: the original output is a 255 way Softmax as PixelVAEs are posed as a
+                    # classification problem).
+                    recon_target = inp
+                    if args.autoregression:
+                        recon = torch.zeros((inp.size(0), inp.size(1), inp.size(2), inp.size(3))).to(device)
+                        for h in range(inp.size(2)):
+                            for w in range(inp.size(3)):
+                                for c in range(inp.size(1)):
+                                    probs = torch.softmax(recon_output[:, :, c, h, w], dim=1).data
+                                    pixel_sample = torch.multinomial(probs, 1).float() / 255.
+                                    recon[:, c, h, w] = pixel_sample.squeeze()
+                    else:
+                        # If not autoregressive simply apply the Sigmoid
+                        recon = torch.sigmoid(recon_output)
+
+                    for j in range(inp.size(0)):
+                        if args.autoregression:
+                            rec = recon_output[j].view(1, recon_output.size(1), recon_output.size(2),
+                                                        recon_output.size(3), recon_output.size(4))
+                            rec_tar = recon_target[j].view(1, recon_target.size(1), recon_target.size(2),
+                                                            recon_target.size(3))
+
+                        # If the input belongs to one of the base classes also update base metrics
+                        #if class_target[j].item() in base_classes:
+                        if args.autoregression:
+                            recon_losses_base_bits_per_dim.update(F.cross_entropy(rec, (rec_tar * 255).long()) *
+                                                                    math.log2(math.e), 1)
+                        recon_losses_base_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
+
+            # New
+            print("\n Computing New Task Validation \n")
+            if (epoch + 1) / args.epochs == 1:
+                prec1_new = prec1_base
+                recon_losses_new_nat.avg = recon_losses_base_nat.avg
+                if args.autoregression:
+                    recon_losses_new_bits_per_dim.avg = recon_losses_base_bits_per_dim.avg
+            else:
+                with torch.no_grad():
+                    for i, (inp, target) in enumerate(Dataset.new_valset_loader):
+                        inp = inp.to(device)
+                        target = target.to(device)
+
+                        recon_target = inp
+                        class_target = target
+
+                        # compute output
+                        class_samples, recon_samples, mu, std = model(inp)
+
+                        #for autoregressive models convert the target to 0-255 integers and compute the autoregressive decoder
+                        #for each sample
+                        if args.autoregression:
+                            recon_target = (recon_target * 255).long()
+                            recon_samples_autoregression = torch.zeros(recon_samples.size(0), inp.size(0), 256, inp.size(1),
+                                                                    inp.size(2), inp.size(3)).to(device)
+                            for j in range(model.module.num_samples):
+                                recon_samples_autoregression[j] = model.module.pixelcnn(
+                                    inp, torch.sigmoid(recon_samples[j])).contiguous()
+                            recon_samples = recon_samples_autoregression
+
+                        # compute loss
+                        if args.use_kl_regularization:
+                            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                                    model.module.prev_mu, model.module.prev_std, device, args)
+                        else:
+                            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                                        device, args)
+
+                        # For autoregressive models also update the bits per dimension value, converted from the obtained nats
+                        if args.autoregression:
+                            recon_losses_bits_per_dim.update(recon_loss.item() * math.log2(math.e), inp.size(0))
+
+                        # take mean to compute accuracy
+                        # (does nothing if there isn't more than 1 sample per input other than removing dummy dimension)
+                        class_output = torch.mean(class_samples, dim=0)
+                        recon_output = torch.mean(recon_samples, dim=0)
+
+                        # measure accuracy, record loss, fill confusion matrix
+                        prec1_new = accuracy(class_output, target)[0]
+                        top1_new.update(prec1_new.item(), inp.size(0))
+
+                        # for autoregressive models generate reconstructions by sequential sampling from the
+                        # multinomial distribution (Reminder: the original output is a 255 way Softmax as PixelVAEs are posed as a
+                        # classification problem).
+                        recon_target = inp
+                        if args.autoregression:
+                            recon = torch.zeros((inp.size(0), inp.size(1), inp.size(2), inp.size(3))).to(device)
+                            for h in range(inp.size(2)):
+                                for w in range(inp.size(3)):
+                                    for c in range(inp.size(1)):
+                                        probs = torch.softmax(recon_output[:, :, c, h, w], dim=1).data
+                                        pixel_sample = torch.multinomial(probs, 1).float() / 255.
+                                        recon[:, c, h, w] = pixel_sample.squeeze()
+                        else:
+                            # If not autoregressive simply apply the Sigmoid
+                            recon = torch.sigmoid(recon_output)
+
+                        for j in range(inp.size(0)):
+                            if args.autoregression:
+                                rec = recon_output[j].view(1, recon_output.size(1), recon_output.size(2),
+                                                            recon_output.size(3), recon_output.size(4))
+                                rec_tar = recon_target[j].view(1, recon_target.size(1), recon_target.size(2),
+                                                                recon_target.size(3))
+
+                            # If the input belongs to one of the base classes also update base metrics
+                            #if class_target[j].item() in base_classes:
+                            if args.autoregression:
+                                recon_losses_new_bits_per_dim.update(F.cross_entropy(rec, (rec_tar * 255).long()) *
+                                                                        math.log2(math.e), 1)                                            
+                            recon_losses_new_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
+        
+        
+            # At the continual learning metrics to TensorBoard
+            writer.add_scalar('validation/base_precision@1', prec1_base, len(model.module.seen_tasks)-1)
+            writer.add_scalar('validation/new_precision@1', prec1_new, len(model.module.seen_tasks)-1)
+            writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
+                              args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+            writer.add_scalar('validation/new_rec_loss_nats', recon_losses_new_nat.avg * args.patch_size *
+                              args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+
+            if args.autoregression:
+                writer.add_scalar('validation/base_rec_loss_bits_per_dim',
+                                  recon_losses_base_bits_per_dim.avg, len(model.module.seen_tasks) - 1)
+                writer.add_scalar('validation/new_rec_loss_bits_per_dim',
+                                  recon_losses_new_bits_per_dim.avg, len(model.module.seen_tasks) - 1)
+
+            print(' * Incremental validation: Base Prec@1 {prec1_base:.3f} New Prec@1 {prec1_new:.3f}\t'
+                  'Base Recon Loss {recon_losses_base_nat.avg:.3f} New Recon Loss {recon_losses_new_nat.avg:.3f}'
+                  .format(prec1_base=prec1_base, prec1_new=prec1_new,
+                          recon_losses_base_nat=recon_losses_base_nat, recon_losses_new_nat=recon_losses_new_nat))
+    
     return top1.avg, losses.avg

@@ -9,6 +9,7 @@ from lib.Training.evaluate import sample_per_class_zs
 import lib.Datasets.datasets as all_datasets
 from lib.Training.evaluate import eval_dataset
 
+import copy
 import numpy as np
 
 
@@ -976,9 +977,19 @@ def get_incremental_dataset(parent_class, args):
             
             # Get the corresponding class datasets for the initial datasets as specified by number and order
             self.trainset, self.valset = self.__get_initial_dataset()
+
+            # Init separate additional validation sets for
+            self.base_valset = copy.copy(self.valset)
+            self.new_valset = copy.copy(self.valset)
             
             # Get the respective initial class data loaders
             self.train_loader, self.val_loader = self.get_dataset_loader(args.batch_size, args.workers, is_gpu)
+
+            # Get data loaders for base_valset and new_valset
+            self.base_valset_loader = torch.utils.data.DataLoader(self.base_valset, batch_size=args.batch_size, shuffle=True,
+                            num_workers=args.workers, pin_memory=is_gpu)
+            self.new_valset_loader = torch.utils.data.DataLoader(self.new_valset, batch_size=args.batch_size, shuffle=True,
+                            num_workers=args.workers, pin_memory=is_gpu)
             return
 
         def __get_incremental_datasets(self):
@@ -1037,6 +1048,7 @@ def get_incremental_dataset(parent_class, args):
                             num_workers=workers, pin_memory=is_gpu)
             return train_loader, val_loader
 
+
         def increment_tasks(self, model, batch_size, workers, writer, save_path, is_gpu,
                             upper_bound_baseline=False, generative_replay=False, openset_generative_replay=False,
                             openset_threshold=0.2, openset_tailsize=0.05, autoregression=False):
@@ -1055,7 +1067,8 @@ def get_incremental_dataset(parent_class, args):
 
             # again sort the new tasks so they can be poped back to front from list of all sets
             sorted_new_tasks = sorted(new_tasks, reverse=True)
-
+            print("sorted_new_tasks:", sorted_new_tasks)
+            print("seen_tasks:", self.seen_tasks)
             if upper_bound_baseline:
                 new_trainsets = [self.trainsets.pop(j) for j in sorted_new_tasks]
                 new_trainsets.append(self.trainset)
@@ -1081,11 +1094,21 @@ def get_incremental_dataset(parent_class, args):
             # get the validation sets and concatenate them to existing validation data
             # note that validation is always conducted on 'real' data, while training can be done on generated samples
             new_valsets = [self.valsets.pop(j) for j in sorted_new_tasks]
+            # store new valset
+            if(self.num_increment_tasks == 1):
+                self.new_valset = new_valsets[0]
+            else:
+                tmp_new_valsets = torch.utils.data.ConcatDataset(new_valsets)
+                self.new_valset = tmp_new_valsets
+            
             new_valsets.append(self.valset)
             self.valset = torch.utils.data.ConcatDataset(new_valsets)
 
             # update the train and val loaders
             self.train_loader, self.val_loader = self.get_dataset_loader(batch_size, workers, is_gpu)
+            # update the new_valset loader
+            self.new_valset_loader = torch.utils.data.DataLoader(self.new_valset, batch_size=batch_size, shuffle=True,
+                            num_workers=workers, pin_memory=is_gpu)
             return
 
         def generate_seen_tasks(self, model, batch_size, seen_dataset_size, writer, save_path,
