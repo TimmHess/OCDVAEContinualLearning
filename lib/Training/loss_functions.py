@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 def get_kl(m, v, m0, v0):
     # adapted from: https://github.com/bunkerj/mlmi4-vcl/blob/master/src/KL.py
@@ -11,6 +12,29 @@ def get_kl(m, v, m0, v0):
     logStdDiff = 0.5 * torch.sum(torch.log(eps+v0**2)-torch.log(eps+v**2))
     muDiffTerm = 0.5 * torch.sum((v**2 + (m0-m)**2) / v0**2)
     return (constTerm + logStdDiff + muDiffTerm) / torch.numel(m)
+
+
+def loss_fn_kd(scores, target_scores, T=2.):
+    """Compute knowledge-distillation (KD) loss given [scores] and [target_scores].
+    Both [scores] and [target_scores] should be tensors, although [target_scores] should be repackaged.
+    'Hyperparameter': temperature"""
+
+    log_scores_norm = F.log_softmax(scores / T, dim=1)
+    log_scores_norm = log_scores_norm[:,:target_scores.shape[1],:,:]
+    targets_norm = F.softmax(target_scores / T, dim=1)
+    targets_norm = targets_norm[:,:,:,:]
+
+    # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
+    KD_loss_unnorm = -(targets_norm * log_scores_norm)
+    #print(KD_loss_unnorm.shape)
+    KD_loss_unnorm = KD_loss_unnorm.sum(dim=1)                      #--> sum over classes
+    #print(KD_loss_unnorm.shape)
+    KD_loss_unnorm = KD_loss_unnorm.mean()                          #--> average over batch
+
+    # normalize
+    KD_loss = KD_loss_unnorm * T**2
+    return KD_loss
+
 
 def unified_loss_function(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args):
     """

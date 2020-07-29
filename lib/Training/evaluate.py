@@ -51,7 +51,6 @@ def get_mu_and_std(model, data_loader, device):
     Parameters:
         model (torch.nn.module): Trained model.
         data_loader (torch.utils.data.DataLoader): The dataset loader.
-        num_classes (int): Numbe of classes.
         device (str): Device to compute on.
 
     Returns:

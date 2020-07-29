@@ -2,6 +2,7 @@ import time
 import torch
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy
+from lib.Training.loss_functions import loss_fn_kd
 
 
 def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device, args):
@@ -76,6 +77,21 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
         # add the individual loss components together and weight the KL term.
         loss = class_loss + recon_loss + args.var_beta * kld_loss
+
+        # calculate lwf loss
+        if args.use_lwf:
+            # get prediction from previous model
+            prev_pred_class_samples, _, _, _ = model.prev_model(inp)
+            prev_cl_losses = torch.zeros(output_samples_classification.size(0)).to(device)
+            # loop through each sample for each input and calculate the correspond loss. Normalize the losses.
+            for i in range(output_samples_classification.size(0)):
+                prev_cl_losses[i] = loss_fn_kd(output_samples_classification[i], target) / torch.numel(target)
+            
+            # average the loss over all samples per input
+            cl_lwf = torch.mean(prev_cl_losses, dim=0)
+
+            # add lwf loss to overall loss
+            loss += args.lmda * cl_lwf
 
         # take mean to compute accuracy. Note if variational samples are 1 this only gets rid of a dummy dimension.
         output = torch.mean(class_samples, dim=0)

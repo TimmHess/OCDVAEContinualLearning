@@ -308,6 +308,11 @@ def main():
                     print("Calculating task's mu and std for kl regularization")
                     prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
                     set_previous_mu_and_std(model, prev_mu, prev_std)
+                
+                # save previous model if lwf
+                if args.use_lwf:
+                    print("Storing previous model")
+                    model.prev_model = model
 
                 print("Incrementing dataset ...")
                 dataset.increment_tasks(model, args.batch_size, args.workers, writer, save_path,

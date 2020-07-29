@@ -225,6 +225,9 @@ class DCNN(nn.Module):
         self.prev_mu = torch.zeros(self.latent_dim).to(device)
         self.prev_std = torch.ones(self.latent_dim).to(device)
 
+        # Previous model for lwf predictions
+        self.prev_model = None
+
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleConvLayer(1, self.num_colors, 128, kernel_size=4, stride=2, padding=1,
                                                batch_norm=self.batch_norm)),
