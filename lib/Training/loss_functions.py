@@ -18,11 +18,14 @@ def loss_fn_kd(scores, target_scores, T=2.):
     """Compute knowledge-distillation (KD) loss given [scores] and [target_scores].
     Both [scores] and [target_scores] should be tensors, although [target_scores] should be repackaged.
     'Hyperparameter': temperature"""
+    
+    #print("score", scores.shape)
+    #print("target", target_scores.shape)
 
     log_scores_norm = F.log_softmax(scores / T, dim=1)
-    log_scores_norm = log_scores_norm[:,:target_scores.shape[1],:,:]
+    log_scores_norm = log_scores_norm[:,:target_scores.shape[1]] # log_scores_norm[:,:target_scores.shape[1],:,:]
     targets_norm = F.softmax(target_scores / T, dim=1)
-    targets_norm = targets_norm[:,:,:,:]
+    #targets_norm = targets_norm[:,:,:,:]
 
     # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
     KD_loss_unnorm = -(targets_norm * log_scores_norm)

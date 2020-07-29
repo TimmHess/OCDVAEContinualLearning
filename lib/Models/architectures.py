@@ -2,7 +2,6 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-
 def grow_classifier(device, classifier, class_increment, weight_initializer):
     """
     Function to grow the units of a classifier an initializing only the newly added units while retaining old knowledge.
