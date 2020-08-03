@@ -70,6 +70,10 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
             recon_target = inp
             class_target = target
 
+            # visualize inp
+            if epoch % args.epochs == 0 and i == 0:
+                visualize_image_grid(inp, writer, epoch + 1, 'val_inp_snapshot', save_path)
+
             # compute output
             class_samples, recon_samples, mu, std = model(inp)
 
@@ -366,7 +370,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
             # New
             print("\n Computing New Task Validation \n")
             if (epoch + 1) / args.epochs == 1:
-                prec1_new = prec1_base
+                #prec1_new = prec1_base
+                top1_new = top1_base
                 recon_losses_new_nat.avg = recon_losses_base_nat.avg
                 if args.autoregression:
                     recon_losses_new_bits_per_dim.avg = recon_losses_base_bits_per_dim.avg
@@ -446,8 +451,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
         
         
             # At the continual learning metrics to TensorBoard
-            writer.add_scalar('validation/base_precision@1', prec1_base, len(model.module.seen_tasks)-1)
-            writer.add_scalar('validation/new_precision@1', prec1_new, len(model.module.seen_tasks)-1)
+            writer.add_scalar('validation/base_precision@1', top1_base.avg, len(model.module.seen_tasks)-1)
+            writer.add_scalar('validation/new_precision@1', top1_new.avg, len(model.module.seen_tasks)-1)
             writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
                               args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
             writer.add_scalar('validation/new_rec_loss_nats', recon_losses_new_nat.avg * args.patch_size *

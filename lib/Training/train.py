@@ -3,9 +3,10 @@ import torch
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy
 from lib.Training.loss_functions import loss_fn_kd
+from lib.Utility.visualization import visualize_image_grid
 
 
-def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device, args):
+def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device, args, save_path):
     """
     Trains/updates the model for one epoch on the training dataset.
 
@@ -40,6 +41,9 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
     for i, (inp, target) in enumerate(Dataset.train_loader):
         inp = inp.to(device)
         target = target.to(device)
+
+        if epoch % args.epochs == 0 and i == 0:
+            visualize_image_grid(inp, writer, epoch + 1, 'train_inp_snapshot', save_path)
 
         recon_target = inp
         class_target = target

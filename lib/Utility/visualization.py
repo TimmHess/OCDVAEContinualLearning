@@ -83,7 +83,10 @@ def visualize_confusion(writer, step, matrix, class_dict, save_path):
         save_path (str): Path used for saving
     """
 
+    print(matrix)
+
     all_categories = sorted(class_dict, key=class_dict.get)
+    print("all_categories", all_categories)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)

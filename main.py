@@ -348,7 +348,7 @@ def main():
                 model.module.seen_tasks = dataset.seen_tasks
 
         # train
-        train(dataset, model, criterion, epoch, iteration, optimizer, writer, device, args)
+        train(dataset, model, criterion, epoch, iteration, optimizer, writer, device, args, save_path)
 
         # evaluate on validation set
         prec, loss = validate(dataset, model, criterion, epoch, iteration, writer, device, save_path, args)

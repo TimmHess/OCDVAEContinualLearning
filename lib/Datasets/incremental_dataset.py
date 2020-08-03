@@ -968,6 +968,8 @@ def get_incremental_dataset(parent_class, args):
 
             self.vis_size = 144
 
+            print(self.class_to_idx)
+
             self.trainsets, self.valsets = {}, {}
 
             self.num_images_per_dataset = [0]

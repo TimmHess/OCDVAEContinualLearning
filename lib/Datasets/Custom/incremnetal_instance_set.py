@@ -54,15 +54,14 @@ class ClassificationSequence(data.Dataset):
 
     def __load_data(self):
         # Get all sub-sequence dirs from root_path
-        sub_sequences_dirs = [f.name for f in os.scandir(self.path_to_root) if f.is_dir()]
-        #print("subsequence_dirs", sub_sequences_dirs)
-        
+        sub_sequences_dirs = sorted([f.name for f in os.scandir(self.path_to_root) if f.is_dir()])
+
         data = []
         # For each sub-sequence dir
         for sub_sequence_dir in sub_sequences_dirs:
             # Get all sub dirs (a.k.a. classes)
             class_name_dirs = [f.name for f in os.scandir(self.path_to_root+sub_sequence_dir+"/") if f.is_dir()]
-    
+
             # For each class get the respective label from labelmap 
             for class_name in class_name_dirs:
                 label = self.label_dict[class_name]
@@ -85,7 +84,9 @@ class ClassificationSequence(data.Dataset):
     def __get_class_to_idx(self, label_dict):
         class_to_idx = {}
         for key in label_dict:
-            class_to_idx[label_dict[key]] = key
+            #print(key)
+            #class_to_idx[label_dict[key]] = key
+            class_to_idx[key] = label_dict[key]
         return class_to_idx
 
     def __get_num_classes(self, label_dict):
