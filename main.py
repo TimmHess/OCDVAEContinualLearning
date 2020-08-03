@@ -7,6 +7,7 @@ import random
 from time import gmtime, strftime
 import numpy as np
 import pickle
+import copy
 
 # Tensorboard for PyTorch logging and visualization
 from torch.utils.tensorboard import SummaryWriter
@@ -312,9 +313,10 @@ def main():
                 # save previous model if lwf
                 if args.use_lwf:
                     print("Storing previous model")
-                    model.prev_model = model
+                    model.module.prev_model = copy.deepcopy(model)
+                    print("Storing complete...")
 
-                print("Incrementing dataset ...")
+                print("Incrementing dataset...")
                 dataset.increment_tasks(model, args.batch_size, args.workers, writer, save_path,
                                         is_gpu=torch.cuda.is_available(),
                                         upper_bound_baseline=args.train_incremental_upper_bound,
