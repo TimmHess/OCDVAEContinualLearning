@@ -153,17 +153,17 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         iteration[0] += 1
 
     # TensorBoard summary logging
-    #writer.add_scalar('training/train_precision@1', top1.avg, epoch)
-    #writer.add_scalar('training/train_average_loss', losses.avg, epoch)
-    #writer.add_scalar('training/train_KLD', kld_losses.avg, epoch)
-    #writer.add_scalar('training/train_class_loss', class_losses.avg, epoch)
-    #writer.add_scalar('training/train_recon_loss', recon_losses.avg, epoch)
+    writer.add_scalar('training/train_precision@1', top1.avg, epoch)
+    writer.add_scalar('training/train_average_loss', losses.avg, epoch)
+    writer.add_scalar('training/train_KLD', kld_losses.avg, epoch)
+    writer.add_scalar('training/train_class_loss', class_losses.avg, epoch)
+    writer.add_scalar('training/train_recon_loss', recon_losses.avg, epoch)
 
-    writer.add_scalar('training/train_precision@1', top1.avg, iteration[0])
-    writer.add_scalar('training/train_average_loss', losses.avg, iteration[0])
-    writer.add_scalar('training/train_KLD', kld_losses.avg, iteration[0])
-    writer.add_scalar('training/train_class_loss', class_losses.avg, iteration[0])
-    writer.add_scalar('training/train_recon_loss', recon_losses.avg, iteration[0])
+    writer.add_scalar('training/train_precision_itr@1', top1.avg, iteration[0])
+    writer.add_scalar('training/train_average_loss_itr', losses.avg, iteration[0])
+    writer.add_scalar('training/train_KLD_itr', kld_losses.avg, iteration[0])
+    writer.add_scalar('training/train_class_loss_itr', class_losses.avg, iteration[0])
+    writer.add_scalar('training/train_recon_loss_itr', recon_losses.avg, iteration[0])
     
     if args.use_lwf:
         writer.add_scalar('training/train_lwf_loss', lwf_losses.avg, iteration[0])

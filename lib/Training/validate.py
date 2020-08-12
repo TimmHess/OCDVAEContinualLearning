@@ -204,17 +204,17 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                        top1=top1, recon_loss=recon_losses_nat, KLD_loss=kld_losses))
 
     # TensorBoard summary logging
-    #writer.add_scalar('validation/val_precision@1', top1.avg, epoch)
-    #writer.add_scalar('validation/val_average_loss', losses.avg, epoch)
-    #writer.add_scalar('validation/val_class_loss', class_losses.avg, epoch)
-    #writer.add_scalar('validation/val_recon_loss_nat', recon_losses_nat.avg, epoch)
-    #writer.add_scalar('validation/val_KLD', kld_losses.avg, epoch)
+    writer.add_scalar('validation/val_precision@1', top1.avg, epoch)
+    writer.add_scalar('validation/val_average_loss', losses.avg, epoch)
+    writer.add_scalar('validation/val_class_loss', class_losses.avg, epoch)
+    writer.add_scalar('validation/val_recon_loss_nat', recon_losses_nat.avg, epoch)
+    writer.add_scalar('validation/val_KLD', kld_losses.avg, epoch)
 
-    writer.add_scalar('validation/val_precision@1', top1.avg, iteration[0])
-    writer.add_scalar('validation/val_average_loss', losses.avg, iteration[0])
-    writer.add_scalar('validation/val_class_loss', class_losses.avg, iteration[0])
-    writer.add_scalar('validation/val_recon_loss_nat', recon_losses_nat.avg, iteration[0])
-    writer.add_scalar('validation/val_KLD', kld_losses.avg, iteration[0])
+    writer.add_scalar('validation/val_precision_itr@1', top1.avg, iteration[0])
+    writer.add_scalar('validation/val_average_loss_itr', losses.avg, iteration[0])
+    writer.add_scalar('validation/val_class_loss_itr', class_losses.avg, iteration[0])
+    writer.add_scalar('validation/val_recon_loss_nat_itr', recon_losses_nat.avg, iteration[0])
+    writer.add_scalar('validation/val_KLD_itr', kld_losses.avg, iteration[0])
 
     if args.autoregression:
         #writer.add_scalar('validation/val_recon_loss_bits_per_dim', recon_losses_bits_per_dim.avg, epoch)

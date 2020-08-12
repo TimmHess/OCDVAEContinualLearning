@@ -67,6 +67,10 @@ def main():
             save_path += '_genreplay'
         if args.openset_generative_replay:
             save_path += '_opensetreplay'
+        if args.use-kl-regularization:
+            save_path += '_kl-reg'
+        if args.use-lwf:
+            save_path += '_lwf'
     if args.cross_dataset:
         save_path += '_cross_dataset_' + args.dataset_order
 
@@ -341,6 +345,7 @@ def main():
                 else:
                     model.module.num_classes += args.num_increment_tasks
                     grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                    print("Classifier grown..")
 
                 # reset moving averages etc. of the optimizer
                 optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)

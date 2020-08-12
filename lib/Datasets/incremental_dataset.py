@@ -175,10 +175,10 @@ def get_incremental_dataset(parent_class, args):
             """
 
             train_loader = torch.utils.data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True,
-                                                       num_workers=workers, pin_memory=is_gpu, sampler=None)
+                                                       num_workers=workers, pin_memory=is_gpu, sampler=None, drop_last=True)
 
             val_loader = torch.utils.data.DataLoader(self.valset, batch_size=batch_size, shuffle=True,
-                                                     num_workers=workers, pin_memory=is_gpu)
+                                                     num_workers=workers, pin_memory=is_gpu, drop_last=True)
 
             return train_loader, val_loader
 
@@ -989,9 +989,9 @@ def get_incremental_dataset(parent_class, args):
 
             # Get data loaders for base_valset and new_valset
             self.base_valset_loader = torch.utils.data.DataLoader(self.base_valset, batch_size=args.batch_size, shuffle=True,
-                            num_workers=args.workers, pin_memory=is_gpu)
+                            num_workers=args.workers, pin_memory=is_gpu, drop_last=True)
             self.new_valset_loader = torch.utils.data.DataLoader(self.new_valset, batch_size=args.batch_size, shuffle=True,
-                            num_workers=args.workers, pin_memory=is_gpu)
+                            num_workers=args.workers, pin_memory=is_gpu, drop_last=True)
             return
 
         def __get_incremental_datasets(self):
@@ -1044,10 +1044,10 @@ def get_incremental_dataset(parent_class, args):
 
         def get_dataset_loader(self, batch_size, workers, is_gpu):
             train_loader = torch.utils.data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True,
-                            num_workers=workers, pin_memory=is_gpu)
+                            num_workers=workers, pin_memory=is_gpu, drop_last=True)
             
             val_loader = torch.utils.data.DataLoader(self.valset, batch_size=batch_size, shuffle=True,
-                            num_workers=workers, pin_memory=is_gpu)
+                            num_workers=workers, pin_memory=is_gpu, drop_last=True)
             return train_loader, val_loader
 
 
@@ -1110,7 +1110,7 @@ def get_incremental_dataset(parent_class, args):
             self.train_loader, self.val_loader = self.get_dataset_loader(batch_size, workers, is_gpu)
             # update the new_valset loader
             self.new_valset_loader = torch.utils.data.DataLoader(self.new_valset, batch_size=batch_size, shuffle=True,
-                            num_workers=workers, pin_memory=is_gpu)
+                            num_workers=workers, pin_memory=is_gpu, drop_last=True)
             return
 
         def generate_seen_tasks(self, model, batch_size, seen_dataset_size, writer, save_path,
