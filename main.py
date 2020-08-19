@@ -67,9 +67,9 @@ def main():
             save_path += '_genreplay'
         if args.openset_generative_replay:
             save_path += '_opensetreplay'
-        if args.use-kl-regularization:
+        if args.use_kl_regularization:
             save_path += '_kl-reg'
-        if args.use-lwf:
+        if args.use_lwf:
             save_path += '_lwf'
     if args.cross_dataset:
         save_path += '_cross_dataset_' + args.dataset_order

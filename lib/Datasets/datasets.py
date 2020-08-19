@@ -1021,11 +1021,18 @@ class IncrementalInstanceSet:
         return
 
     def get_dataset(self, args):
-        trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
-            args.patch_size)
+        if args.incremental_data:
+            trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
+                args.patch_size)
 
-        valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
-            args.patch_size)
+            valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
+                args.patch_size)
+        else:
+            trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
+                args.patch_size, use_single_container=True)
+
+            valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
+                args.patch_size, use_single_container=True)
         return trainset, valset
 
     def get_dataset_loader(self, batch_size, workers, is_gpu):
