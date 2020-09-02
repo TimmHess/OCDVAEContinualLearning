@@ -89,12 +89,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                 recon_samples = recon_samples_autoregression
 
             # compute loss
-            if args.use_kl_regularization:
-                class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                        model.module.prev_mu, model.module.prev_std, device, args)
-            else:
-                class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                            device, args)
+            #if args.use_kl_regularization:
+            #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+            #                                            model.module.prev_mu, model.module.prev_std, device, args)
+            #else:
+            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                        device, args)
 
             # For autoregressive models also update the bits per dimension value, converted from the obtained nats
             if args.autoregression:
@@ -317,12 +317,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                         recon_samples = recon_samples_autoregression
 
                     # compute loss
-                    if args.use_kl_regularization:
-                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                                model.module.prev_mu, model.module.prev_std, device, args)
-                    else:
-                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                                    device, args)
+                    #if args.use_kl_regularization:
+                    #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                    #                                            model.module.prev_mu, model.module.prev_std, device, args)
+                    #else:
+                    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                                device, args)
 
                     # For autoregressive models also update the bits per dimension value, converted from the obtained nats
                     if args.autoregression:
@@ -399,12 +399,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                             recon_samples = recon_samples_autoregression
 
                         # compute loss
-                        if args.use_kl_regularization:
-                            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                                    model.module.prev_mu, model.module.prev_std, device, args)
-                        else:
-                            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                                        device, args)
+                        #if args.use_kl_regularization:
+                        #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                        #                                            model.module.prev_mu, model.module.prev_std, device, args)
+                        #else:
+                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                                    device, args)
 
                         # For autoregressive models also update the bits per dimension value, converted from the obtained nats
                         if args.autoregression:

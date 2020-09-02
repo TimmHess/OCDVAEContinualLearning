@@ -2,6 +2,8 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
+import lib.Models.si as SI
+
 def grow_classifier(device, classifier, class_increment, weight_initializer):
     """
     Function to grow the units of a classifier an initializing only the newly added units while retaining old knowledge.
@@ -226,6 +228,9 @@ class DCNN(nn.Module):
 
         # Previous model for lwf predictions
         self.prev_model = None
+
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
 
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleConvLayer(1, self.num_colors, 128, kernel_size=4, stride=2, padding=1,

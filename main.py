@@ -31,7 +31,7 @@ from lib.Training.evaluate import get_mu_and_std
 from lib.Utility.visualization import args_to_tensorboard
 from lib.Utility.visualization import visualize_dataset_in_2d_embedding
 from lib.Models.architectures import set_previous_mu_and_std
-
+import lib.Models.si as SI
 
 # Comment this if CUDNN benchmarking is not desired
 cudnn.benchmark = True
@@ -67,8 +67,10 @@ def main():
             save_path += '_genreplay'
         if args.openset_generative_replay:
             save_path += '_opensetreplay'
-        if args.use_kl_regularization:
-            save_path += '_kl-reg'
+        #if args.use_kl_regularization:
+        #    save_path += '_kl-reg'
+        if args.use_si:
+            save_path += '_si'
         if args.use_lwf:
             save_path += '_lwf'
     if args.cross_dataset:
@@ -86,10 +88,10 @@ def main():
         log.write(arg + ':' + str(getattr(args, arg)) + '\n')
 
     # Initialize criterion
-    if args.use_kl_regularization:
-        from lib.Training.loss_functions import unified_loss_function_kl_regularized as criterion
-    else:
-        from lib.Training.loss_functions import unified_loss_function as criterion
+    #if args.use_kl_regularization:
+    #    from lib.Training.loss_functions import unified_loss_function_kl_regularized as criterion
+    #else:
+    from lib.Training.loss_functions import unified_loss_function as criterion
 
 
     # Dataset loading
@@ -258,6 +260,11 @@ def main():
     WeightInitializer = WeightInit(args.weight_init)
     WeightInitializer.init_model(model)
 
+    # SI: Register all model paramters
+    if args.use_si:
+        SI.register_si_params(model.module, model.module.si_storage)
+        print("SI: Initial paramters got registered")
+
     # Define optimizer and loss function (criterion)
     optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
 
@@ -281,6 +288,10 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
+    # SI: Prepare storing of running parameter updates for this sequence (reset dicts W and p_old)
+    SI.init_si_params(model.module, model.module.si_storage)
+    print("SI: Reset running paramters for next task")
+    
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
     while epoch < (args.epochs * epoch_multiplier):
         print("")
@@ -309,16 +320,23 @@ def main():
                 save_task_checkpoint(save_path, epoch // args.epochs)
 
                 # track mu and std for regularization
-                if args.use_kl_regularization:
-                    print("Calculating task's mu and std for kl regularization")
-                    prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
-                    set_previous_mu_and_std(model, prev_mu, prev_std)
+                #if args.use_kl_regularization:
+                #    print("Calculating task's mu and std for kl regularization")
+                #    prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
+                #    set_previous_mu_and_std(model, prev_mu, prev_std)
                 
                 # save previous model if lwf
                 if args.use_lwf:
                     print("Storing previous model")
                     model.module.prev_model = copy.deepcopy(model)
                     print("Storing complete...")
+
+                # perform SI calculations
+                if args.use_si:
+                    # SI: Update internal paramters
+                    SI.update_si_integral(model.module, model.module.si_storage)
+                    print("SI: Updated Omega")
+                    
 
                 print("Incrementing dataset...")
                 dataset.increment_tasks(model, args.batch_size, args.workers, writer, save_path,
@@ -346,6 +364,14 @@ def main():
                     model.module.num_classes += args.num_increment_tasks
                     grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
                     print("Classifier grown..")
+
+                    # Register new paramters to SI
+                    if args.use_si:
+                        SI.update_registered_si_params(model.module, model.module.si_storage)
+                        print("SI: Updated registration of SI params for grown model")
+                        # SI: Reset running parameters (after growing)
+                        SI.init_si_params(model.module, model.module.si_storage)
+                        print("SI: Reset running paramters for next task")
 
                 # reset moving averages etc. of the optimizer
                 optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)

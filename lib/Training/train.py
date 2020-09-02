@@ -4,6 +4,7 @@ from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy
 from lib.Training.loss_functions import loss_fn_kd
 from lib.Utility.visualization import visualize_image_grid
+import lib.Models.si as SI
 
 
 def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device, args, save_path):
@@ -28,6 +29,7 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
     kld_losses = AverageMeter()
     losses = AverageMeter()
     lwf_losses = AverageMeter()
+    si_losses = AverageMeter()
     batch_time = AverageMeter()
     data_time = AverageMeter()
 
@@ -73,12 +75,12 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             recon_target = (recon_target * 255).long()
 
         # calculate loss
-        if args.use_kl_regularization:
-            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                        model.module.prev_mu, model.module.prev_std, device, args)
-        else:
-            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                        device, args)
+        #if args.use_kl_regularization:
+        #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+        #                                                model.module.prev_mu, model.module.prev_std, device, args)
+        #else:
+        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
+                                                    device, args)
 
         # add the individual loss components together and weight the KL term.
         loss = class_loss + recon_loss + args.var_beta * kld_loss
@@ -90,7 +92,7 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             prev_cl_losses = torch.zeros(prev_pred_class_samples.size(0)).to(device)
             # loop through each sample for each input and calculate the correspond loss. Normalize the losses.
             for s in range(prev_pred_class_samples.size(0)):
-                prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) / torch.numel(target)
+                prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
             
             # average the loss over all samples per input
             cl_lwf = torch.mean(prev_cl_losses, dim=0)
@@ -100,6 +102,14 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
             # record lwf losses
             lwf_losses.update(cl_lwf.item(), inp.size(0))
+
+        # calculate SI loss (if SI is initialized)
+        if args.use_si and model.module.si_storage.is_initialized:
+            loss_si = args.lmda * SI.surrogate_loss(model.module, model.module.si_storage)
+            print(loss_si.item())
+            loss += loss_si
+
+            si_losses.update(loss_si.item(), inp.size(0))
 
         # take mean to compute accuracy. Note if variational samples are 1 this only gets rid of a dummy dimension.
         output = torch.mean(class_samples, dim=0)
@@ -116,6 +126,11 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        # SI: update running si paramters
+        if args.use_si:
+            SI.update_si_parameters(model.module, model.module.si_storage)
+            #print("SI: Updated running parameters")
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -136,6 +151,20 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                     epoch, i, len(Dataset.train_loader), batch_time=batch_time,
                     data_time=data_time, loss=losses, cl_loss=class_losses, top1=top1,
                     recon_loss=recon_losses, KLD_loss=kld_losses, lwf_loss=cl_lwf.item()))
+            if args.use_si and model.module.si_storage.is_initialized:
+                print('Training: [{0}][{1}/{2}]\t' 
+                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                    'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                    'Class Loss {cl_loss.val:.4f} ({cl_loss.avg:.4f})\t'
+                    'SI Loss {si_loss:.4f}\t'
+                    'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                    'Recon Loss {recon_loss.val:.4f} ({recon_loss.avg:.4f})\t'
+                    'KL {KLD_loss.val:.4f} ({KLD_loss.avg:.4f})'.format(
+                    epoch, i, len(Dataset.train_loader), batch_time=batch_time,
+                    data_time=data_time, loss=losses, cl_loss=class_losses, top1=top1,
+                    recon_loss=recon_losses, KLD_loss=kld_losses, si_loss=loss_si.item()))
+            
             else:
                 print('Training: [{0}][{1}/{2}]\t' 
                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -167,6 +196,8 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
     
     if args.use_lwf:
         writer.add_scalar('training/train_lwf_loss', lwf_losses.avg, iteration[0])
+    if args.use_si:
+        writer.add_scalar('training/train_si_loss', si_losses.avg, iteration[0])
 
     # If the log weights argument is specified also add parameter and gradient histograms to TensorBoard.
     if args.log_weights:

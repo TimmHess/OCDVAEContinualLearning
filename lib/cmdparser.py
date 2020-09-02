@@ -84,12 +84,15 @@ parser.add_argument('--dataset-order', default='AudioMNIST, MNIST, FashionMNIST'
 parser.add_argument('-genreplay', '--generative-replay', default=False, action='store_true',
                     help='Turn on generative replay for data from old tasks')
 
-parser.add_argument('--use-kl-regularization', default=False, action='store_true',
-                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+#parser.add_argument('--use-kl-regularization', default=False, action='store_true',
+#                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+
+parser.add_argument('--use-si', default=False, action='store_true',
+                    help="Uses the SI framework for parameter regularization")
 
 parser.add_argument('--use-lwf', default=False, action='store_true',
                     help="Uses lwf regularization")
-parser.add_argument('--lmda', default=0.5, help="Lwf regularization strength")
+parser.add_argument('--lmda', type=float, default=0.5, help="Lwf regularization strength")
 
 # Open set arguments
 parser.add_argument('--openset-generative-replay', default=False, action='store_true',

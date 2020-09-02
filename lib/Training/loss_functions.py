@@ -14,6 +14,31 @@ def get_kl(m, v, m0, v0):
     return (constTerm + logStdDiff + muDiffTerm) / torch.numel(m)
 
 
+# def loss_fn_kd(scores, target_scores, T=2.):
+#     """Compute knowledge-distillation (KD) loss given [scores] and [target_scores].
+#     Both [scores] and [target_scores] should be tensors, although [target_scores] should be repackaged.
+#     'Hyperparameter': temperature"""
+    
+#     #print("score", scores.shape)
+#     #print("target", target_scores.shape)
+
+#     log_scores_norm = F.log_softmax(scores / T, dim=1)
+#     log_scores_norm = log_scores_norm[:,:target_scores.shape[1]] # log_scores_norm[:,:target_scores.shape[1],:,:]
+#     targets_norm = F.softmax(target_scores / T, dim=1)
+#     #targets_norm = targets_norm[:,:,:,:]
+
+#     # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
+#     KD_loss_unnorm = -(targets_norm * log_scores_norm)
+#     #print(KD_loss_unnorm.shape)
+#     KD_loss_unnorm = KD_loss_unnorm.sum(dim=1)                      #--> sum over classes
+#     #print(KD_loss_unnorm.shape)
+#     KD_loss_unnorm = KD_loss_unnorm.mean()                          #--> average over batch
+
+#     # normalize
+#     KD_loss = KD_loss_unnorm * T**2
+#     return KD_loss
+
+
 def loss_fn_kd(scores, target_scores, T=2.):
     """Compute knowledge-distillation (KD) loss given [scores] and [target_scores].
     Both [scores] and [target_scores] should be tensors, although [target_scores] should be repackaged.
@@ -22,10 +47,19 @@ def loss_fn_kd(scores, target_scores, T=2.):
     #print("score", scores.shape)
     #print("target", target_scores.shape)
 
+    device = scores.device
+
     log_scores_norm = F.log_softmax(scores / T, dim=1)
-    log_scores_norm = log_scores_norm[:,:target_scores.shape[1]] # log_scores_norm[:,:target_scores.shape[1],:,:]
     targets_norm = F.softmax(target_scores / T, dim=1)
-    #targets_norm = targets_norm[:,:,:,:]
+
+    # if [scores] and [target_scores] do not have equal size, append 0's to [targets_norm]
+    n = scores.size(1)
+    if n > target_scores.size(1):
+        n_batch = scores.size(0)
+        zeros_to_add = torch.zeros(n_batch, n-target_scores.size(1))
+        zeros_to_add = zeros_to_add.to(device)
+        targets_norm = torch.cat([targets_norm.detach(), zeros_to_add], dim=1)
+
 
     # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
     KD_loss_unnorm = -(targets_norm * log_scores_norm)
