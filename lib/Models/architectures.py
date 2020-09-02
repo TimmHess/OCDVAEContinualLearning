@@ -14,7 +14,6 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
         class_increment (int): Number of classes/units to add.
         weight_initializer (WeightInit): Weight initializer class instance defining initialization schemes/functions.
     """
-
     # add the corresponding amount of features and resize the weights
     new_in_features = classifier[-1].in_features
     new_out_features = classifier[-1].out_features + class_increment
@@ -35,6 +34,59 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
     classifier[-1].weight.data[0:-class_increment, :] = tmp_weights
     if not isinstance(classifier[-1].bias, type(None)):
         classifier[-1].bias.data[0:-class_increment] = tmp_bias
+
+def consolidate_classifier(model):
+    """
+    Function to merge pervious and current classifier
+    """
+    # get classifier
+    classifier = model.classifier # uncosolidated weights
+
+    #check for bias 
+    if not classifier[-1].bias is None:
+        print("\nClassifier bias handling has not been implemented!\n")
+        raise NotImplementedError
+
+    # store un-consolidated weights
+    model.temp_classifier_weights = classifier[-1].weight.data.clone()
+    
+    # create new weight tensor for consolidation
+    consolidated_weights = torch.zeros_like(classifier[-1].weight.data)
+    #print("classifier weights", classifier[-1].weight.data.shape)
+    #print("consolidated", consolidated_weights.shape)
+
+    # get previous classifier weights
+    prev_weights = model.prev_classifier_weights
+    #print("prev_weights", prev_weights.shape)
+
+    # fill consolidated weights with previous classifier weights
+    consolidated_weights[0:prev_weights.shape[0]] = prev_weights
+    #print("consolidation 1")
+    #print(consolidated_weights)
+    # get average weight of new classes weights
+    curr_weight_avg = torch.mean(classifier[-1].weight.data)
+    # add new weights
+    consolidated_weights[prev_weights.shape[0]:] = (classifier[-1].weight.data[prev_weights.shape[0]:] - curr_weight_avg)
+    #print("consolidation2")
+    #print(consolidated_weights)
+    
+    # apply weights to classifier
+    classifier[-1].weight.data = consolidated_weights
+    #print(classifier[-1].weight)
+    #sys.exit()
+    return
+
+def un_consolidate_classifier(model):
+    """
+    Function to reset the current classifier from previous consolidation with previous weights.
+    This is needed when wanting to continue training with the not yet consolidated classifier.
+    """
+    # get classifier
+    classifier = model.classifier # consolidated weights
+    
+    # load (unconsolidated) temp_weights to classifier
+    classifier[-1].weight.data = model.temp_classifier_weights.clone()
+    return
 
 
 def get_feat_size(block, spatial_size, ncolors=3):
@@ -223,14 +275,20 @@ class DCNN(nn.Module):
         self.latent_dim = args.var_latent_dim
 
         # Previous mu and std
-        self.prev_mu = torch.zeros(self.latent_dim).to(device)
-        self.prev_std = torch.ones(self.latent_dim).to(device)
+        #self.prev_mu = torch.zeros(self.latent_dim).to(device)
+        #self.prev_std = torch.ones(self.latent_dim).to(device)
 
         # Previous model for lwf predictions
         self.prev_model = None
 
         # SI Storage Unit
         self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
 
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleConvLayer(1, self.num_colors, 128, kernel_size=4, stride=2, padding=1,

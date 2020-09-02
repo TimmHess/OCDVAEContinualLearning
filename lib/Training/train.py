@@ -5,6 +5,7 @@ from lib.Utility.metrics import accuracy
 from lib.Training.loss_functions import loss_fn_kd
 from lib.Utility.visualization import visualize_image_grid
 import lib.Models.si as SI
+from lib.Models.architectures import un_consolidate_classifier
 
 
 def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device, args, save_path):
@@ -37,6 +38,14 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
     # switch to train mode
     model.train()
+
+    if args.use_si:
+        if not model.module.temp_classifier_weights is None:
+            # load unconsolidated classifier weights
+            #model.module.classifier[-1].weight.data = model.module.temp_classifier_weights.clone()
+            un_consolidate_classifier(model.module)
+            #print("SI: loaded unconsolidated classifier weights")
+            #print("requires grad check: ", model.module.classifier[-1].weight)
 
     end = time.time()
 
@@ -105,7 +114,11 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
         # calculate SI loss (if SI is initialized)
         if args.use_si and model.module.si_storage.is_initialized:
-            loss_si = args.lmda * SI.surrogate_loss(model.module, model.module.si_storage)
+            loss_si = args.lmda * (
+                SI.surrogate_loss(model.module.encoder, model.module.si_storage)
+                + SI.surrogate_loss(model.module.latent_mu, model.module.si_storage_mu)
+                + SI.surrogate_loss(model.module.latent_std, model.module.si_storage_std))
+
             print(loss_si.item())
             loss += loss_si
 
@@ -129,7 +142,9 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
         # SI: update running si paramters
         if args.use_si:
-            SI.update_si_parameters(model.module, model.module.si_storage)
+            SI.update_si_parameters(model.module.encoder, model.module.si_storage)
+            SI.update_si_parameters(model.module.latent_mu, model.module.si_storage_mu)
+            SI.update_si_parameters(model.module.latent_std, model.module.si_storage_std)
             #print("SI: Updated running parameters")
 
         # measure elapsed time

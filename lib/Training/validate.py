@@ -7,6 +7,7 @@ from lib.Utility.metrics import ConfusionMeter
 from lib.Utility.metrics import accuracy
 from lib.Utility.visualization import visualize_confusion
 from lib.Utility.visualization import visualize_image_grid
+from lib.Models.architectures import consolidate_classifier
 
 
 def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_path, args):
@@ -58,6 +59,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
     # switch to evaluate mode
     model.eval()
+
+    if args.use_si:
+        if not model.module.prev_classifier_weights is None:
+            # load consolidated weights for classifier
+            consolidate_classifier(model.module)
+            print("SI: Consolidated classifier weights for validation")
 
     end = time.time()
 

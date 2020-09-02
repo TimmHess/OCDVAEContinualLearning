@@ -32,6 +32,7 @@ from lib.Utility.visualization import args_to_tensorboard
 from lib.Utility.visualization import visualize_dataset_in_2d_embedding
 from lib.Models.architectures import set_previous_mu_and_std
 import lib.Models.si as SI
+from lib.Models.architectures import consolidate_classifier
 
 # Comment this if CUDNN benchmarking is not desired
 cudnn.benchmark = True
@@ -262,7 +263,9 @@ def main():
 
     # SI: Register all model paramters
     if args.use_si:
-        SI.register_si_params(model.module, model.module.si_storage)
+        SI.register_si_params(model.module.encoder, model.module.si_storage)
+        SI.register_si_params(model.module.latent_mu, model.module.si_storage_mu)
+        SI.register_si_params(model.module.latent_std, model.module.si_storage_std)
         print("SI: Initial paramters got registered")
 
     # Define optimizer and loss function (criterion)
@@ -289,7 +292,9 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # SI: Prepare storing of running parameter updates for this sequence (reset dicts W and p_old)
-    SI.init_si_params(model.module, model.module.si_storage)
+    SI.init_si_params(model.module.encoder, model.module.si_storage)
+    SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+    SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
     print("SI: Reset running paramters for next task")
     
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
@@ -334,9 +339,18 @@ def main():
                 # perform SI calculations
                 if args.use_si:
                     # SI: Update internal paramters
-                    SI.update_si_integral(model.module, model.module.si_storage)
+                    SI.update_si_integral(model.module.encoder, model.module.si_storage)
+                    SI.update_si_integral(model.module.latent_mu, model.module.si_storage_mu)
+                    SI.update_si_integral(model.module.latent_std, model.module.si_storage_std)
                     print("SI: Updated Omega")
-                    
+                    # If there are previous classifier weighs -> consolidate before saving
+                    if not model.module.prev_classifier_weights is None:
+                        # consolidate classifier weights -> not needed because weights are still consolidated from validation
+                        #consolidate_classifier(model.module)
+                        pass
+                    # SI: Store (consolidated) classifier weights as prev_classifier_weights
+                    model.module.prev_classifier_weights = model.module.classifier[-1].weight.data.clone()
+                    print("SI: Stored previous classifier weights before classifier has grown")
 
                 print("Incrementing dataset...")
                 dataset.increment_tasks(model, args.batch_size, args.workers, writer, save_path,
@@ -367,11 +381,19 @@ def main():
 
                     # Register new paramters to SI
                     if args.use_si:
-                        SI.update_registered_si_params(model.module, model.module.si_storage)
-                        print("SI: Updated registration of SI params for grown model")
+                        #SI.update_registered_si_params(model.module.encoder, model.module.si_storage)
+                        #print("SI: Updated registration of SI params for grown model")
                         # SI: Reset running parameters (after growing)
-                        SI.init_si_params(model.module, model.module.si_storage)
+                        SI.init_si_params(model.module.encoder, model.module.si_storage)
+                        SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+                        SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
                         print("SI: Reset running paramters for next task")
+                        # SI: Re-Initialize ALL classifier weights
+                        WeightInitializer.layer_init(model.module.classifier[-1])
+                        print("SI: Re-Initialized classification layer")
+                        # SI: Store temp_classifier_weights
+                        model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()
+                        print("SI: Stored classifier weights to temp_classifier_weights")
 
                 # reset moving averages etc. of the optimizer
                 optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
