@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from torch.nn import init
 
@@ -62,6 +63,36 @@ class WeightInit:
         """
 
         self.init_method(m.weight.data)
+
+        if not isinstance(m.bias, type(None)):
+            m.bias.data.fill_(0)
+
+
+class ZeroWeightInit:
+    """
+    Class for weight-initialization. Would have been nice to just inherit
+    but PyTorch does not have a class for weight initialization. However methods
+    for weight initialization are imported and used from the following script:
+    https://github.com/pytorch/pytorch/blob/master/torch/nn/init.py
+
+    Parameters:
+
+    Attributes:
+
+    """
+
+    def __init__(self):
+        return
+
+    def layer_init(self, m):
+        """
+        Initializes a single module (layer).
+
+        Parameters:
+            m (torch.nn.Module): Module (layer) of the model
+        """
+
+        m.weight.data = torch.zeros_like(m.weight.data)
 
         if not isinstance(m.bias, type(None)):
             m.bias.data.fill_(0)

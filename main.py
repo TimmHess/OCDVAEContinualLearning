@@ -20,7 +20,7 @@ import torch.backends.cudnn as cudnn
 import lib.Models.architectures as architectures
 from lib.Models.pixelcnn import PixelCNN
 import lib.Datasets.datasets as datasets
-from lib.Models.initialization import WeightInit
+from lib.Models.initialization import WeightInit, ZeroWeightInit
 from lib.Models.architectures import grow_classifier
 from lib.cmdparser import parser
 from lib.Training.train import train
@@ -261,6 +261,10 @@ def main():
     WeightInitializer = WeightInit(args.weight_init)
     WeightInitializer.init_model(model)
 
+    # SI: Get ZeroWeightInit instance
+    if args.use_si:
+        ZeroWeightInitializer = ZeroWeightInit()
+
     # SI: Register all model paramters
     if args.use_si:
         SI.register_si_params(model.module.encoder, model.module.si_storage)
@@ -389,7 +393,8 @@ def main():
                         SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
                         print("SI: Reset running paramters for next task")
                         # SI: Re-Initialize ALL classifier weights
-                        WeightInitializer.layer_init(model.module.classifier[-1])
+                        #WeightInitializer.layer_init(model.module.classifier[-1])
+                        ZeroWeightInitializer.layer_init(model.module.classifier[-1])
                         print("SI: Re-Initialized classification layer")
                         # SI: Store temp_classifier_weights
                         model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()

@@ -61,10 +61,10 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
     model.eval()
 
     if args.use_si:
-        if not model.module.prev_classifier_weights is None:
-            # load consolidated weights for classifier
-            consolidate_classifier(model.module)
-            print("SI: Consolidated classifier weights for validation")
+        #if not model.module.prev_classifier_weights is None:
+        # load consolidated weights for classifier
+        consolidate_classifier(model.module)
+        print("SI: Consolidated classifier weights for validation")
 
     end = time.time()
 

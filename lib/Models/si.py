@@ -45,9 +45,10 @@ def update_omega(model, storage_unit, W, epsilon):
                 new_omega = torch.zeros_like(p)
                 new_omega[:omega.shape[0]] = omega
                 omega = new_omega
+                omega_new = omega + omega_add
             except AttributeError:
                 omega = p.detach().clone().zero_()
-            omega_new = omega + omega_add
+                omega_new = omega + (0.25 * omega_add) 
             #print("")
             print("updated omega..")
             print("min", torch.min(omega_new), "max", torch.max(omega_new))
@@ -77,12 +78,12 @@ def surrogate_loss(model, storage_unit):
                 if p.size(0) > omega.size(0):
                     tmp_omega = torch.zeros_like(p)
                     tmp_omega[:omega.shape[0]] = omega
-                    #losses.append((tmp_omega * ((p-prev_values)**2)).sum())
-                    losses.append((((p-prev_values)**2)).sum())
+                    losses.append((tmp_omega * ((p-prev_values)**2)).sum())
+                    #losses.append((((p-prev_values)**2)).sum())
                 else:
                 #losses.append((omega * ((p-prev_values)**2)[:omega.shape[0]]).sum())
-                    #losses.append((omega * ((p-prev_values)**2)).sum())
-                    losses.append((((p-prev_values)**2)).sum())
+                    losses.append((omega * ((p-prev_values)**2)).sum())
+                    #losses.append((((p-prev_values)**2)).sum())
         #print("sum_losses", sum(losses))
         return sum(losses)
     except AttributeError:

@@ -119,7 +119,7 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                 + SI.surrogate_loss(model.module.latent_mu, model.module.si_storage_mu)
                 + SI.surrogate_loss(model.module.latent_std, model.module.si_storage_std))
 
-            print(loss_si.item())
+            #print(loss_si.item())
             loss += loss_si
 
             si_losses.update(loss_si.item(), inp.size(0))

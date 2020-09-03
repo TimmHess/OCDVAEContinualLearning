@@ -36,13 +36,14 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
         classifier[-1].bias.data[0:-class_increment] = tmp_bias
 
 def consolidate_classifier(model):
+    print("consolidate")
     """
     Function to merge pervious and current classifier
     """
     # get classifier
-    classifier = model.classifier # uncosolidated weights
+    classifier = model.classifier # with uncosolidated weights
 
-    #check for bias 
+    # check for bias 
     if not classifier[-1].bias is None:
         print("\nClassifier bias handling has not been implemented!\n")
         raise NotImplementedError
@@ -59,16 +60,20 @@ def consolidate_classifier(model):
     prev_weights = model.prev_classifier_weights
     #print("prev_weights", prev_weights.shape)
 
-    # fill consolidated weights with previous classifier weights
-    consolidated_weights[0:prev_weights.shape[0]] = prev_weights
-    #print("consolidation 1")
-    #print(consolidated_weights)
-    # get average weight of new classes weights
-    curr_weight_avg = torch.mean(classifier[-1].weight.data)
-    # add new weights
-    consolidated_weights[prev_weights.shape[0]:] = (classifier[-1].weight.data[prev_weights.shape[0]:] - curr_weight_avg)
-    #print("consolidation2")
-    #print(consolidated_weights)
+    if prev_weights is None: # if no previous weights
+        curr_weight_avg = torch.mean(classifier[-1].weight.data)
+        consolidated_weights = (classifier[-1].weight.data.clone() - curr_weight_avg)
+    else:
+        # fill consolidated weights with previous classifier weights
+        consolidated_weights[0:prev_weights.shape[0]] = prev_weights
+        #print("consolidation 1")
+        #print(consolidated_weights)
+        # get average weight of new classes weights
+        curr_weight_avg = torch.mean(classifier[-1].weight.data)
+        # add new weights
+        consolidated_weights[prev_weights.shape[0]:] = (classifier[-1].weight.data[prev_weights.shape[0]:] - curr_weight_avg)
+        #print("consolidation2")
+        #print(consolidated_weights)
     
     # apply weights to classifier
     classifier[-1].weight.data = consolidated_weights
@@ -77,6 +82,7 @@ def consolidate_classifier(model):
     return
 
 def un_consolidate_classifier(model):
+    print("unconsolidate")
     """
     Function to reset the current classifier from previous consolidation with previous weights.
     This is needed when wanting to continue training with the not yet consolidated classifier.
