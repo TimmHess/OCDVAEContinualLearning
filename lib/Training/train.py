@@ -2,7 +2,7 @@ import time
 import torch
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy
-from lib.Training.loss_functions import loss_fn_kd
+from lib.Training.loss_functions import loss_fn_kd, loss_fn_kd_multihead
 from lib.Utility.visualization import visualize_image_grid
 import lib.Models.si as SI
 from lib.Models.architectures import un_consolidate_classifier
@@ -51,6 +51,15 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
     # train
     for i, (inp, target) in enumerate(Dataset.train_loader):
+        # multiheaded: move targets to head space
+        if args.is_multiheaded:
+            target = target.clone()
+            for i in range(target.size(0)):
+                #print(Dataset.maps_target_head[-1][target.numpy()[i]])
+                target[i] = Dataset.maps_target_head[-1][target.numpy()[i]]
+            #print(target)
+        
+        # move data to device
         inp = inp.to(device)
         target = target.to(device)
 
@@ -88,8 +97,8 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
         #                                                model.module.prev_mu, model.module.prev_std, device, args)
         #else:
-        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-                                                    device, args)
+        class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-args.num_increment_tasks:], class_target, 
+                                                    recon_samples, recon_target, mu, std, device, args)
 
         # add the individual loss components together and weight the KL term.
         loss = class_loss + recon_loss + args.var_beta * kld_loss
@@ -99,16 +108,19 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             # get prediction from previous model
             prev_pred_class_samples, _, _, _ = model.module.prev_model(inp)
             prev_cl_losses = torch.zeros(prev_pred_class_samples.size(0)).to(device)
+
             # loop through each sample for each input and calculate the correspond loss. Normalize the losses.
             for s in range(prev_pred_class_samples.size(0)):
-                prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
-            
+                if args.is_multiheaded:
+                    prev_cl_losses[s] = loss_fn_kd_multihead(class_samples[s][:,:-args.num_increment_tasks], prev_pred_class_samples[s], 
+                                                            task_sizes=args.num_increment_tasks)
+                else:
+                    prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
+
             # average the loss over all samples per input
             cl_lwf = torch.mean(prev_cl_losses, dim=0)
-
             # add lwf loss to overall loss
             loss += args.lmda * cl_lwf
-
             # record lwf losses
             lwf_losses.update(cl_lwf.item(), inp.size(0))
 

@@ -64,6 +64,8 @@ parser.add_argument('--visualization-epoch', default=20, type=int, help='number 
 # Continual learning
 parser.add_argument('--incremental-data', default=False, action='store_true',
                     help='Convert dataloaders to class incremental ones')
+parser.add_argument('--is-multiheaded', action='store_true', default=False,
+                    help='Whether to use multiple classification heads')
 parser.add_argument('--incremental-instance', default=False, action='store_true',
                     help='Convert dataloaders to instance incremental ones')
 parser.add_argument('--train-incremental-upper-bound', default=False, action='store_true',

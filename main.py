@@ -62,6 +62,8 @@ def main():
 
     if args.incremental_data:
         save_path += '_incremental'
+        if args.is_multiheaded:
+            save_path += '_multihead'
         if args.train_incremental_upper_bound:
             save_path += '_upper_bound'
         if args.generative_replay:
@@ -92,7 +94,10 @@ def main():
     #if args.use_kl_regularization:
     #    from lib.Training.loss_functions import unified_loss_function_kl_regularized as criterion
     #else:
-    from lib.Training.loss_functions import unified_loss_function as criterion
+    if args.is_multiheaded:
+        from lib.Training.loss_functions import unified_loss_function_multihead as criterion
+    else:
+        from lib.Training.loss_functions import unified_loss_function as criterion
 
 
     # Dataset loading
@@ -296,10 +301,11 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # SI: Prepare storing of running parameter updates for this sequence (reset dicts W and p_old)
-    SI.init_si_params(model.module.encoder, model.module.si_storage)
-    SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
-    SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
-    print("SI: Reset running paramters for next task")
+    if args.use_si:
+        SI.init_si_params(model.module.encoder, model.module.si_storage)
+        SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+        SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+        print("SI: Reset running paramters for next task")
     
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
     while epoch < (args.epochs * epoch_multiplier):
@@ -382,7 +388,7 @@ def main():
                     model.module.num_classes += args.num_increment_tasks
                     grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
                     print("Classifier grown..")
-
+                    
                     # Register new paramters to SI
                     if args.use_si:
                         #SI.update_registered_si_params(model.module.encoder, model.module.si_storage)
