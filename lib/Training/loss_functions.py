@@ -85,9 +85,14 @@ def loss_fn_kd_multihead(scores, target_scores, task_sizes, T=2.):
     # caution! this works only if all tasks are same size and score is dividable (luckily this is provided by this framework) 
     KD_losses = torch.zeros(scores.size(1) // task_sizes).to(device)
     for i in range(scores.size(1) // task_sizes): 
-        log_scores_norm = F.log_softmax(scores[:,:(i+1)*task_sizes] / T, dim=1)
-        targets_norm = F.softmax(target_scores[:,:(i+1)*task_sizes] / T, dim=1)
-        
+
+        print("scores", scores)
+        print("target_scores", target_scores)
+        #log_scores_norm = F.log_softmax(scores[:,:(i+1)*task_sizes] / T, dim=1)
+        #targets_norm = F.softmax(target_scores[:,:(i+1)*task_sizes] / T, dim=1)
+        log_scores_norm = F.log_softmax(scores[:,i*task_sizes:(i+1)*task_sizes] / T, dim=1)
+        targets_norm = F.softmax(target_scores[:,i*task_sizes:(i+1)*task_sizes] / T, dim=1)
+
         # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
         KD_loss_unnorm = -(targets_norm * log_scores_norm)
         #print(KD_loss_unnorm.shape)

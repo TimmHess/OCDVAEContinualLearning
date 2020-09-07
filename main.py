@@ -344,6 +344,7 @@ def main():
                 if args.use_lwf:
                     print("Storing previous model")
                     model.module.prev_model = copy.deepcopy(model)
+                    model.module.prev_model.eval()
                     print("Storing complete...")
 
                 # perform SI calculations

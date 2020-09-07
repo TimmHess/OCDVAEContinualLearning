@@ -78,12 +78,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                                                      num_workers=args.workers, pin_memory=torch.cuda.is_available(), drop_last=True)
                 # iterate validation set
                 for i, (inp, target) in enumerate(val_loader):
-                    print(target)
+                    #print(target)
                     # convert targets to respective heads space (indicated by val_index)
                     target_head = target.clone()
                     for i in range(target.size(0)):
                         target_head[i] = Dataset.maps_target_head[valset_index][target.numpy()[i]]
-                    print(target_head)
+                    #print(target_head)
                     inp = inp.to(device)
                     target = target.to(device) # (global) space
                     target_head = target_head.to(device) # head space
@@ -97,12 +97,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                         visualize_image_grid(inp, writer, epoch + 1, 'val_inp_snapshot', save_path)
 
                     # compute output
-                    class_samples, recon_samples, mu, std = model(inp)
+                    class_samples, recon_samples, mu, std = model(inp) # class_samples are (global) target space
 
                     # computer loss for respective head
                     head_start = (valset_index) * args.num_increment_tasks 
                     head_end = (valset_index+1) * args.num_increment_tasks
-                    print("head start, end:", head_start, head_end)
+                    #print("head start, end:", head_start, head_end)
                     class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,head_start:head_end], class_target, recon_samples, recon_target, mu, std,
                                                             device, args)
 
@@ -115,16 +115,17 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     # copy only current head output back into an zero-ed tensor
                     #print("class output", class_output.shape)
                     #print(class_output)
-                    task_class_output = torch.zeros_like(class_output)
+                    task_class_output = torch.zeros_like(class_output).fill_(-100000)
                     #print(task_class_output.shape)
                     task_class_output[:,head_start:head_end] = class_output[:,head_start:head_end]
-                    #print(task_class_output)
+                    #print("task_class_output", task_class_output)
 
                     # measure accuracy, record loss, fill confusion matrix
                     #prec1 = accuracy(class_output, target)[0]
                     prec1 = accuracy(task_class_output, target)[0]
                     top1.update(prec1.item(), inp.size(0))
-                    confusion.add(class_output.data, target)
+                    #confusion.add(class_output.data, target)
+                    confusion.add(task_class_output.data, target)
 
                     # measure elapsed time
                     batch_time.update(time.time() - end)

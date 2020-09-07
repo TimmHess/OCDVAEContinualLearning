@@ -106,7 +106,8 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         # calculate lwf loss (if there is a previous model stored)
         if args.use_lwf and model.module.prev_model:
             # get prediction from previous model
-            prev_pred_class_samples, _, _, _ = model.module.prev_model(inp)
+            with torch.no_grad():
+                prev_pred_class_samples, _, _, _ = model.module.prev_model(inp)
             prev_cl_losses = torch.zeros(prev_pred_class_samples.size(0)).to(device)
 
             # loop through each sample for each input and calculate the correspond loss. Normalize the losses.
@@ -137,7 +138,10 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             si_losses.update(loss_si.item(), inp.size(0))
 
         # take mean to compute accuracy. Note if variational samples are 1 this only gets rid of a dummy dimension.
-        output = torch.mean(class_samples, dim=0)
+        if args.is_multiheaded:
+            output = torch.mean(class_samples[:,:,-args.num_increment_tasks:], dim=0)
+        else:
+            output = torch.mean(class_samples, dim=0)
 
         # record precision/accuracy and losses
         prec1 = accuracy(output, target)[0]
