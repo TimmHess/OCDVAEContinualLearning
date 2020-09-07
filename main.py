@@ -401,11 +401,12 @@ def main():
                         print("SI: Reset running paramters for next task")
                         # SI: Re-Initialize ALL classifier weights
                         #WeightInitializer.layer_init(model.module.classifier[-1])
-                        ZeroWeightInitializer.layer_init(model.module.classifier[-1])
-                        print("SI: Re-Initialized classification layer")
-                        # SI: Store temp_classifier_weights
-                        model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()
-                        print("SI: Stored classifier weights to temp_classifier_weights")
+                        if not args.is_multiheaded:
+                            ZeroWeightInitializer.layer_init(model.module.classifier[-1])
+                            print("SI: Re-Initialized classification layer")
+                            # SI: Store temp_classifier_weights
+                            model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()
+                            print("SI: Stored classifier weights to temp_classifier_weights")
 
                 # reset moving averages etc. of the optimizer
                 optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)

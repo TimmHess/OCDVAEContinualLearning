@@ -39,10 +39,9 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
     # switch to train mode
     model.train()
 
-    if args.use_si:
+    if args.use_si and not args.is_multiheaded:
         if not model.module.temp_classifier_weights is None:
             # load unconsolidated classifier weights
-            #model.module.classifier[-1].weight.data = model.module.temp_classifier_weights.clone()
             un_consolidate_classifier(model.module)
             #print("SI: loaded unconsolidated classifier weights")
             #print("requires grad check: ", model.module.classifier[-1].weight)
@@ -97,8 +96,12 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
         #                                                model.module.prev_mu, model.module.prev_std, device, args)
         #else:
-        class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-args.num_increment_tasks:], class_target, 
-                                                    recon_samples, recon_target, mu, std, device, args)
+        if args.is_multiheaded:
+            class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-args.num_increment_tasks:], class_target, 
+                                                        recon_samples, recon_target, mu, std, device, args)
+        else:
+            class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
+                                                        recon_samples, recon_target, mu, std, device, args)
 
         # add the individual loss components together and weight the KL term.
         loss = class_loss + recon_loss + args.var_beta * kld_loss
@@ -154,6 +157,8 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
+        #if args.use_si:
+        #    print("cl grad:", model.module.classifier[-1].weight.grad)
         optimizer.step()
 
         # SI: update running si paramters

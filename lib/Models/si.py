@@ -47,11 +47,12 @@ def update_omega(model, storage_unit, W, epsilon):
                 omega = new_omega
                 omega_new = omega + omega_add
             except AttributeError:
-                omega = p.detach().clone().zero_()
-                omega_new = omega + (0.25 * omega_add) 
+                #omega = p.detach().clone().zero_()
+                #omega_new = omega + (0.25 * omega_add) 
+                omega_new = omega_add
             #print("")
-            print("updated omega..")
-            print("min", torch.min(omega_new), "max", torch.max(omega_new))
+            #print("updated omega..")
+            #print("min", torch.min(omega_new), "max", torch.max(omega_new))
             # Store these new values in the model
             #model.register_buffer('{}_SI_prev_task'.format(n), p_current)
             storage_unit.register_buffer('{}_SI_prev_task'.format(n), p_current)

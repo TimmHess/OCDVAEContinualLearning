@@ -60,8 +60,7 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
     # switch to evaluate mode
     model.eval()
 
-    if args.use_si:
-        #if not model.module.prev_classifier_weights is None:
+    if args.use_si and not args.is_multiheaded:
         # load consolidated weights for classifier
         consolidate_classifier(model.module)
         print("SI: Consolidated classifier weights for validation")
@@ -360,6 +359,9 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
             visualize_confusion(writer, epoch + 1, confusion.value(), Dataset.task_to_idx, save_path)
         else:
             visualize_confusion(writer, epoch + 1, confusion.value(), Dataset.class_to_idx, save_path)
+
+            if args.use_si:
+                print("cl weights:", model.module.classifier[-1].weight)
 
         # If we are in a continual learning scenario (which is not incremental instance), also use the confusion matrix to extract base and new precision.
         if args.incremental_data and not args.incremental_instance:
