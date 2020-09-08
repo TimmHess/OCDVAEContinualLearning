@@ -38,6 +38,8 @@ parser.add_argument('--wrn-widen-factor', default=10, type=int,
 parser.add_argument('--wrn-embedding-size', type=int, default=48,
                     help='number of output channels in the first wrn layer if widen factor is not being'
                          'applied to the first layer (default: 48)')
+parser.add_argument('--no-vae', action='store_true', default=False,
+                    help='Flag, disabling vae losses (kl and reconstruction')
 
 # Training hyper-parameters
 parser.add_argument('--epochs', default=120, type=int, help='number of total epochs to run')

@@ -70,7 +70,7 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
         # this needs to be below the line where the reconstruction target is set
         # sample and add noise to the input (but not to the target!).
-        if args.denoising_noise_value > 0.0:
+        if args.denoising_noise_value > 0.0 and not args.no_vae:
             noise = torch.randn(inp.size()).to(device) * args.denoising_noise_value
             inp = inp + noise
 
@@ -104,7 +104,10 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                                                         recon_samples, recon_target, mu, std, device, args)
 
         # add the individual loss components together and weight the KL term.
-        loss = class_loss + recon_loss + args.var_beta * kld_loss
+        if args.no_vae:
+            loss = class_loss
+        else:
+            loss = class_loss + recon_loss + args.var_beta * kld_loss
 
         # calculate lwf loss (if there is a previous model stored)
         if args.use_lwf and model.module.prev_model:
@@ -149,10 +152,14 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         # record precision/accuracy and losses
         prec1 = accuracy(output, target)[0]
         top1.update(prec1.item(), inp.size(0))
-        losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
-        class_losses.update(class_loss.item(), inp.size(0))
-        recon_losses.update(recon_loss.item(), inp.size(0))
-        kld_losses.update(kld_loss.item(), inp.size(0))
+        if args.no_vae:
+            losses.update(class_loss.item(), inp.size(0))
+            class_losses.update(class_loss.item(), inp.size(0))
+        else:
+            losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
+            class_losses.update(class_loss.item(), inp.size(0))
+            recon_losses.update(recon_loss.item(), inp.size(0))
+            kld_losses.update(kld_loss.item(), inp.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()

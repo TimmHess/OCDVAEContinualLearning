@@ -77,7 +77,6 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                                                      num_workers=args.workers, pin_memory=torch.cuda.is_available(), drop_last=True)
                 # iterate validation set
                 for i, (inp, target) in enumerate(val_loader):
-                    #print(target)
                     # convert targets to respective heads space (indicated by val_index)
                     target_head = target.clone()
                     for i in range(target.size(0)):
@@ -108,7 +107,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     # take mean to compute accuracy
                     # (does nothing if there isn't more than 1 sample per input other than removing dummy dimension)
                     class_output = torch.mean(class_samples, dim=0)
-                    recon_output = torch.mean(recon_samples, dim=0)
+                    if not args.no_vae:
+                        recon_output = torch.mean(recon_samples, dim=0)
 
                     # convert model outputs back to (global) target space to map back to known evaluation
                     # copy only current head output back into an zero-ed tensor
@@ -131,19 +131,24 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     end = time.time()
 
                     # skipped code for autoregressive model
+
                     # If not autoregressive simply apply the Sigmoid and visualize
-                    recon = torch.sigmoid(recon_output)
-                    if (i == (len(Dataset.val_loader) - 2)) and (epoch % args.visualization_epoch == 0):
-                        visualize_image_grid(recon, writer, epoch + 1, 'reconstruction_snapshot', save_path)
+                    if not args.no_vae:
+                        recon = torch.sigmoid(recon_output)
+                        if (i == (len(Dataset.val_loader) - 2)) and (epoch % args.visualization_epoch == 0):
+                            visualize_image_grid(recon, writer, epoch + 1, 'reconstruction_snapshot', save_path)
                     
                     # update the respective loss values. To be consistent with values reported in the literature we scale
                     # our normalized losses back to un-normalized values.
                     # For the KLD this also means the reported loss is not scaled by beta, to allow for a fair comparison
                     # across potential weighting terms.
                     class_losses.update(class_loss.item() * model.module.num_classes, inp.size(0))
-                    kld_losses.update(kld_loss.item() * model.module.latent_dim, inp.size(0))
-                    recon_losses_nat.update(recon_loss.item() * inp.size()[1:].numel(), inp.size(0))
-                    losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
+                    if args.no_vae:
+                        losses.update(class_loss.item(), inp.size(0))
+                    else:
+                        kld_losses.update(kld_loss.item() * model.module.latent_dim, inp.size(0))
+                        recon_losses_nat.update(recon_loss.item() * inp.size()[1:].numel(), inp.size(0))
+                        losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
 
                     # if we are learning continually, we need to calculate the base and new reconstruction losses at the end
                     # of each task increment.
@@ -162,22 +167,24 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                             # skipped code for autoregressive model
 
                             # If the input belongs to one of the base classes also update base metrics
-                            if class_target[j].item() in base_classes:
-                                recon_losses_base_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
-                            # if the input belongs to one of the new classes also update new metrics
-                            elif class_target[j].item() in new_classes:
-                                recon_losses_new_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
+                            if not args.no_vae:
+                                if class_target[j].item() in base_classes:
+                                    recon_losses_base_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
+                                # if the input belongs to one of the new classes also update new metrics
+                                elif class_target[j].item() in new_classes:
+                                    recon_losses_new_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
 
                     # If we are at the end of validation, create one mini-batch of example generations. Only do this every
                     # other epoch specified by visualization_epoch to avoid generation of lots of images and computationally
                     # expensive calculations of the autoregressive model's generation.
-                    if i == (len(Dataset.val_loader) - 2) and epoch % args.visualization_epoch == 0:
-                        # generation
-                        gen = model.module.generate()
+                    if not args.no_vae:
+                        if i == (len(Dataset.val_loader) - 2) and epoch % args.visualization_epoch == 0:
+                            # generation
+                            gen = model.module.generate()
 
-                        if args.autoregression:
-                            gen = model.module.pixelcnn.generate(gen)
-                        visualize_image_grid(gen, writer, epoch + 1, 'generation_snapshot', save_path)
+                            if args.autoregression:
+                                gen = model.module.pixelcnn.generate(gen)
+                            visualize_image_grid(gen, writer, epoch + 1, 'generation_snapshot', save_path)
 
                     # Print progress
                     if i % args.print_freq == 0:

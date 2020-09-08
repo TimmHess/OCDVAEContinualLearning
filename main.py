@@ -91,10 +91,9 @@ def main():
         log.write(arg + ':' + str(getattr(args, arg)) + '\n')
 
     # Initialize criterion
-    #if args.use_kl_regularization:
-    #    from lib.Training.loss_functions import unified_loss_function_kl_regularized as criterion
-    #else:
-    if args.is_multiheaded:
+    if args.no_vae:
+        from lib.Training.loss_functions import unified_loss_function_no_vae as criterion
+    elif args.is_multiheaded:
         from lib.Training.loss_functions import unified_loss_function_multihead as criterion
     else:
         from lib.Training.loss_functions import unified_loss_function as criterion

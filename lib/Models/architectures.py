@@ -213,6 +213,16 @@ class MLP(nn.Module):
             ('decoder_layer2', nn.Linear(400, self.out_channels * (self.patch_size ** 2), bias=False))
         ]))
 
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
+        return
+
     def encode(self, x):
         x = x.view(x.size(0), -1)
         x = self.encoder(x)
@@ -246,6 +256,65 @@ class MLP(nn.Module):
             output_samples[i] = self.decode(z)
             classification_samples[i] = self.classifier(z)
         return classification_samples, output_samples, z_mean, z_std
+
+
+class MLPNoVAE(nn.Module):
+    def __init__(self, device, num_classes, num_colors, args):
+        super(MLPNoVAE, self).__init__()
+
+        self.batch_norm = args.batch_norm
+        self.patch_size = args.patch_size
+        self.batch_size = args.batch_size
+        self.num_colors = num_colors
+        self.num_classes = num_classes
+        self.device = device
+        self.out_channels = args.out_channels
+
+        self.seen_tasks = []
+
+        self.num_samples = args.var_samples
+        self.latent_dim = args.var_latent_dim
+
+        self.encoder = nn.Sequential(OrderedDict([
+            ('encoder_layer1', SingleLinearLayer(1, self.num_colors * (self.patch_size ** 2), 400,
+                                                 batch_norm=self.batch_norm)),
+            ('encoder_layer2', SingleLinearLayer(2, 400, 400, batch_norm=self.batch_norm))
+        ]))
+
+        self.latent_mu = nn.Linear(400, self.latent_dim, bias=False)
+        self.latent_std = nn.Linear(400, self.latent_dim, bias=False)
+
+
+        self.classifier = nn.Sequential(nn.Linear(400, num_classes, bias=False))
+
+        #self.decoder = nn.Sequential(OrderedDict([
+        #    ('decoder_layer0', SingleLinearLayer(0, self.latent_dim, 400, batch_norm=self.batch_norm)),
+        #    ('decoder_layer1', SingleLinearLayer(1, 400, 400, batch_norm=self.batch_norm)),
+        #    ('decoder_layer2', nn.Linear(400, self.out_channels * (self.patch_size ** 2), bias=False))
+        #]))
+
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
+        return
+
+    def encode(self, x):
+        x = x.view(x.size(0), -1)
+        x = self.encoder(x)
+        return x
+
+    def forward(self, x):
+        z = self.encode(x)
+        
+        classification_samples = torch.zeros(self.num_samples, x.size(0), self.num_classes).to(self.device)
+        for i in range(self.num_samples):
+            classification_samples[i] = self.classifier(z)
+        return classification_samples, None, None, None
 
 
 class DCNN(nn.Module):

@@ -33,26 +33,28 @@ def update_omega(model, storage_unit, W, epsilon):
             # Find/calculate new values for quadratic penalty on parameters
             #p_prev = getattr(model, '{}_SI_prev_task'.format(n))
             p_prev = getattr(storage_unit, '{}_SI_prev_task'.format(n))
-            p_current = p.detach().clone() # detach ? maybe breaks loss?
+            p_current = p.detach().clone() 
             p_change = p_current - p_prev # original
             #p_change = p_prev - p_current # test
+            print("w", torch.min(W[n]), torch.max(W[n]))
+            print("p_change", torch.min(p_change), torch.max(p_change))
 
-            omega_add = W[n]/(p_change**2 + epsilon)
+            omega_add = W[n]/(p_change**2 + epsilon) * 0.01
             try:
                 #omega = getattr(model, '{}_SI_omega'.format(n))
                 omega = getattr(storage_unit, '{}_SI_omega'.format(n))
                 # Copy omega to parameter shape
-                new_omega = torch.zeros_like(p)
-                new_omega[:omega.shape[0]] = omega
-                omega = new_omega
-                omega_new = omega + omega_add
+                #new_omega = torch.zeros_like(p)
+                #new_omega[:omega.shape[0]] = omega
+                #omega = new_omega
+                #omega_new = omega + omega_add
             except AttributeError:
-                #omega = p.detach().clone().zero_()
+                omega = p.detach().clone().zero_()
                 #omega_new = omega + (0.25 * omega_add) 
-                omega_new = omega_add
+            omega_new = omega + omega_add
             #print("")
             #print("updated omega..")
-            #print("min", torch.min(omega_new), "max", torch.max(omega_new))
+            print("omega", "min", torch.min(omega_new), "max", torch.max(omega_new))
             # Store these new values in the model
             #model.register_buffer('{}_SI_prev_task'.format(n), p_current)
             storage_unit.register_buffer('{}_SI_prev_task'.format(n), p_current)
@@ -81,9 +83,10 @@ def surrogate_loss(model, storage_unit):
                     tmp_omega[:omega.shape[0]] = omega
                     losses.append((tmp_omega * ((p-prev_values)**2)).sum())
                     #losses.append((((p-prev_values)**2)).sum())
+                    print("p bigger than omega")
                 else:
                 #losses.append((omega * ((p-prev_values)**2)[:omega.shape[0]]).sum())
-                    losses.append((omega * ((p-prev_values)**2)).sum())
+                    losses.append((omega * (p-prev_values)**2).sum())
                     #losses.append((((p-prev_values)**2)).sum())
         #print("sum_losses", sum(losses))
         return sum(losses)
@@ -148,9 +151,12 @@ def update_si_parameters(model, storage_unit):
         if p.requires_grad:
             n = n.replace('.', '__')
             if p.grad is not None:
+                #print("adding", torch.max(-p.grad*(p.detach()-storage_unit.p_old[n])))
+                #print("p_grad", torch.min(p.grad), torch.max(p.grad))
                 storage_unit.W[n].add_(-p.grad*(p.detach()-storage_unit.p_old[n])) #original
                 #storage_unit.W[n].add_(p.grad*(storage_unit.p_old[n]-p.detach())) # test
             storage_unit.p_old[n] = p.detach().clone()
+    #print("")
 
 # SI: calculate and update the normalized path integral
 def update_si_integral(model, storage_unit):
