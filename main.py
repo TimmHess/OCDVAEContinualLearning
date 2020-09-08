@@ -52,7 +52,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Launch a writer for the tensorboard summary writer instance
-    save_path = 'runs/' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_' + args.dataset + '_' + args.architecture +\
+    save_path = args.save_path_root
+    save_path += 'runs/' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_' + args.dataset + '_' + args.architecture +\
                 '_variational_samples_' + str(args.var_samples) + '_latent_dim_' + str(args.var_latent_dim)
 
     # add option specific naming to separate tensorboard log files later

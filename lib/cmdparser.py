@@ -26,6 +26,8 @@ parser.add_argument('--val_path_to_root', type=str, default=None,
                     help='Path to root of validation set when using incremental sequnece')
 parser.add_argument('--labelmap_file', type=str, default=None,
                     help='Path to labelmap file for incremental sequence')
+parser.add_argument('--save_path_root', type=str, default="./",
+                    help='Path to where the tensorboard logs shall be saved')
 
 # Architecture and weight-init
 parser.add_argument('-a', '--architecture', default='WRN', help='model architecture (default: WRN)')
