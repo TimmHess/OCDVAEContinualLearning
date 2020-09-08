@@ -40,6 +40,8 @@ parser.add_argument('--wrn-widen-factor', default=10, type=int,
 parser.add_argument('--wrn-embedding-size', type=int, default=48,
                     help='number of output channels in the first wrn layer if widen factor is not being'
                          'applied to the first layer (default: 48)')
+parser.add_argument('--no-vae', action='store_true', default=False,
+                    help='Flag, disabling vae losses (kl and reconstruction')
 
 # Training hyper-parameters
 parser.add_argument('--epochs', default=120, type=int, help='number of total epochs to run')
@@ -66,6 +68,8 @@ parser.add_argument('--visualization-epoch', default=20, type=int, help='number 
 # Continual learning
 parser.add_argument('--incremental-data', default=False, action='store_true',
                     help='Convert dataloaders to class incremental ones')
+parser.add_argument('--is-multiheaded', action='store_true', default=False,
+                    help='Whether to use multiple classification heads')
 parser.add_argument('--incremental-instance', default=False, action='store_true',
                     help='Convert dataloaders to instance incremental ones')
 parser.add_argument('--train-incremental-upper-bound', default=False, action='store_true',
@@ -86,12 +90,15 @@ parser.add_argument('--dataset-order', default='AudioMNIST, MNIST, FashionMNIST'
 parser.add_argument('-genreplay', '--generative-replay', default=False, action='store_true',
                     help='Turn on generative replay for data from old tasks')
 
-parser.add_argument('--use-kl-regularization', default=False, action='store_true',
-                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+#parser.add_argument('--use-kl-regularization', default=False, action='store_true',
+#                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+
+parser.add_argument('--use-si', default=False, action='store_true',
+                    help="Uses the SI framework for parameter regularization")
 
 parser.add_argument('--use-lwf', default=False, action='store_true',
                     help="Uses lwf regularization")
-parser.add_argument('--lmda', default=0.5, help="Lwf regularization strength")
+parser.add_argument('--lmda', type=float, default=0.5, help="Lwf regularization strength")
 
 # Open set arguments
 parser.add_argument('--openset-generative-replay', default=False, action='store_true',

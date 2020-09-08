@@ -2,6 +2,8 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
+import lib.Models.si as SI
+
 def grow_classifier(device, classifier, class_increment, weight_initializer):
     """
     Function to grow the units of a classifier an initializing only the newly added units while retaining old knowledge.
@@ -12,7 +14,6 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
         class_increment (int): Number of classes/units to add.
         weight_initializer (WeightInit): Weight initializer class instance defining initialization schemes/functions.
     """
-
     # add the corresponding amount of features and resize the weights
     new_in_features = classifier[-1].in_features
     new_out_features = classifier[-1].out_features + class_increment
@@ -33,6 +34,65 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
     classifier[-1].weight.data[0:-class_increment, :] = tmp_weights
     if not isinstance(classifier[-1].bias, type(None)):
         classifier[-1].bias.data[0:-class_increment] = tmp_bias
+
+def consolidate_classifier(model):
+    print("consolidate")
+    """
+    Function to merge pervious and current classifier
+    """
+    # get classifier
+    classifier = model.classifier # with uncosolidated weights
+
+    # check for bias 
+    if not classifier[-1].bias is None:
+        print("\nClassifier bias handling has not been implemented!\n")
+        raise NotImplementedError
+
+    # store un-consolidated weights
+    model.temp_classifier_weights = classifier[-1].weight.data.clone()
+    
+    # create new weight tensor for consolidation
+    consolidated_weights = torch.zeros_like(classifier[-1].weight.data)
+    #print("classifier weights", classifier[-1].weight.data.shape)
+    #print("consolidated", consolidated_weights.shape)
+
+    # get previous classifier weights
+    prev_weights = model.prev_classifier_weights
+    #print("prev_weights", prev_weights.shape)
+
+    if prev_weights is None: # if no previous weights
+        curr_weight_avg = torch.mean(classifier[-1].weight.data)
+        consolidated_weights = (classifier[-1].weight.data.clone() - curr_weight_avg)
+    else:
+        # fill consolidated weights with previous classifier weights
+        consolidated_weights[0:prev_weights.shape[0]] = prev_weights
+        #print("consolidation 1")
+        #print(consolidated_weights)
+        # get average weight of new classes weights
+        curr_weight_avg = torch.mean(classifier[-1].weight.data)
+        # add new weights
+        consolidated_weights[prev_weights.shape[0]:] = (classifier[-1].weight.data[prev_weights.shape[0]:] - curr_weight_avg)
+        #print("consolidation2")
+        #print(consolidated_weights)
+    
+    # apply weights to classifier
+    classifier[-1].weight.data = consolidated_weights
+    #print(classifier[-1].weight)
+    #sys.exit()
+    return
+
+def un_consolidate_classifier(model):
+    print("unconsolidate")
+    """
+    Function to reset the current classifier from previous consolidation with previous weights.
+    This is needed when wanting to continue training with the not yet consolidated classifier.
+    """
+    # get classifier
+    classifier = model.classifier # consolidated weights
+    
+    # load (unconsolidated) temp_weights to classifier
+    classifier[-1].weight.data = model.temp_classifier_weights.clone()
+    return
 
 
 def get_feat_size(block, spatial_size, ncolors=3):
@@ -153,6 +213,16 @@ class MLP(nn.Module):
             ('decoder_layer2', nn.Linear(400, self.out_channels * (self.patch_size ** 2), bias=False))
         ]))
 
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
+        return
+
     def encode(self, x):
         x = x.view(x.size(0), -1)
         x = self.encoder(x)
@@ -188,6 +258,65 @@ class MLP(nn.Module):
         return classification_samples, output_samples, z_mean, z_std
 
 
+class MLPNoVAE(nn.Module):
+    def __init__(self, device, num_classes, num_colors, args):
+        super(MLPNoVAE, self).__init__()
+
+        self.batch_norm = args.batch_norm
+        self.patch_size = args.patch_size
+        self.batch_size = args.batch_size
+        self.num_colors = num_colors
+        self.num_classes = num_classes
+        self.device = device
+        self.out_channels = args.out_channels
+
+        self.seen_tasks = []
+
+        self.num_samples = args.var_samples
+        self.latent_dim = args.var_latent_dim
+
+        self.encoder = nn.Sequential(OrderedDict([
+            ('encoder_layer1', SingleLinearLayer(1, self.num_colors * (self.patch_size ** 2), 400,
+                                                 batch_norm=self.batch_norm)),
+            ('encoder_layer2', SingleLinearLayer(2, 400, 400, batch_norm=self.batch_norm))
+        ]))
+
+        self.latent_mu = nn.Linear(400, self.latent_dim, bias=False)
+        self.latent_std = nn.Linear(400, self.latent_dim, bias=False)
+
+
+        self.classifier = nn.Sequential(nn.Linear(400, num_classes, bias=False))
+
+        #self.decoder = nn.Sequential(OrderedDict([
+        #    ('decoder_layer0', SingleLinearLayer(0, self.latent_dim, 400, batch_norm=self.batch_norm)),
+        #    ('decoder_layer1', SingleLinearLayer(1, 400, 400, batch_norm=self.batch_norm)),
+        #    ('decoder_layer2', nn.Linear(400, self.out_channels * (self.patch_size ** 2), bias=False))
+        #]))
+
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
+        return
+
+    def encode(self, x):
+        x = x.view(x.size(0), -1)
+        x = self.encoder(x)
+        return x
+
+    def forward(self, x):
+        z = self.encode(x)
+        
+        classification_samples = torch.zeros(self.num_samples, x.size(0), self.num_classes).to(self.device)
+        for i in range(self.num_samples):
+            classification_samples[i] = self.classifier(z)
+        return classification_samples, None, None, None
+
+
 class DCNN(nn.Module):
     """
     CNN architecture inspired by WAE-DCGAN from https://arxiv.org/pdf/1511.06434.pdf but without the GAN component.
@@ -221,11 +350,20 @@ class DCNN(nn.Module):
         self.latent_dim = args.var_latent_dim
 
         # Previous mu and std
-        self.prev_mu = torch.zeros(self.latent_dim).to(device)
-        self.prev_std = torch.ones(self.latent_dim).to(device)
+        #self.prev_mu = torch.zeros(self.latent_dim).to(device)
+        #self.prev_std = torch.ones(self.latent_dim).to(device)
 
         # Previous model for lwf predictions
         self.prev_model = None
+
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
 
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleConvLayer(1, self.num_colors, 128, kernel_size=4, stride=2, padding=1,
