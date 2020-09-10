@@ -194,8 +194,11 @@ def main():
                     task_order = np.load(args.load_task_order).tolist()
                 else:
                     # if no file is found a random task order is created
-                    print("=> no task order found. Creating randomized task order")
-                    task_order = np.random.permutation(num_classes).tolist()
+                    #print("=> no task order found. Creating randomized task order")
+                    #task_order = np.random.permutation(num_classes).tolist()
+                    # load task order from cmd
+                    task_order = args.load_task_order.split(",")
+                    task_order = [int(x) for x in task_order]
             else:
                 # if randomize task order is specified create a random task order, else task order is sequential
                 task_order = []
@@ -332,12 +335,6 @@ def main():
             if epoch % args.epochs == 0 and epoch > 0:
                 print('Saving the last checkpoint from the previous task ...')
                 save_task_checkpoint(save_path, epoch // args.epochs)
-
-                # track mu and std for regularization
-                #if args.use_kl_regularization:
-                #    print("Calculating task's mu and std for kl regularization")
-                #    prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
-                #    set_previous_mu_and_std(model, prev_mu, prev_std)
                 
                 # save previous model if lwf
                 if args.use_lwf:
@@ -379,33 +376,39 @@ def main():
                                     sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
                                     - model.module.num_classes, WeightInitializer)
                     model.module.num_classes = sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
+
                 elif args.incremental_instance:
                     print(len(dataset.train_loader), len(dataset.val_loader))
                     # Do not grow the classifier
                     # TODO: check if new dataset contains more classes and grow accordingly
                     pass
+                    if args.is_multiheaded:
+                        model.module.num_classes += dataset.num_classes
+                        grow_classifier(device, model.module.classifier, dataset.num_classes, WeightInitializer)
+                        print("Incresed classes by " + str(dataset.num_classes) + ", for multi-headed incremental instance")
+
                 else:
                     model.module.num_classes += args.num_increment_tasks
                     grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
                     print("Classifier grown..")
                     
-                    # Register new paramters to SI
-                    if args.use_si:
-                        #SI.update_registered_si_params(model.module.encoder, model.module.si_storage)
-                        #print("SI: Updated registration of SI params for grown model")
-                        # SI: Reset running parameters (after growing)
-                        SI.init_si_params(model.module.encoder, model.module.si_storage)
-                        SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
-                        SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
-                        print("SI: Reset running paramters for next task")
-                        # SI: Re-Initialize ALL classifier weights
-                        #WeightInitializer.layer_init(model.module.classifier[-1])
-                        if not args.is_multiheaded:
-                            ZeroWeightInitializer.layer_init(model.module.classifier[-1])
-                            print("SI: Re-Initialized classification layer")
-                            # SI: Store temp_classifier_weights
-                            model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()
-                            print("SI: Stored classifier weights to temp_classifier_weights")
+                # Register new paramters to SI
+                if args.use_si:
+                    #SI.update_registered_si_params(model.module.encoder, model.module.si_storage)
+                    #print("SI: Updated registration of SI params for grown model")
+                    # SI: Reset running parameters (after growing)
+                    SI.init_si_params(model.module.encoder, model.module.si_storage)
+                    SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+                    SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+                    print("SI: Reset running paramters for next task")
+                    # SI: Re-Initialize ALL classifier weights
+                    #WeightInitializer.layer_init(model.module.classifier[-1])
+                    if not args.is_multiheaded:
+                        ZeroWeightInitializer.layer_init(model.module.classifier[-1])
+                        print("SI: Re-Initialized classification layer")
+                        # SI: Store temp_classifier_weights
+                        model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()
+                        print("SI: Stored classifier weights to temp_classifier_weights")
 
                 # reset moving averages etc. of the optimizer
                 optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
