@@ -435,6 +435,122 @@ class DCNN(nn.Module):
         return classification_samples, output_samples, z_mean, z_std
 
 
+class DCNNNoVAE(nn.Module):
+    """
+    CNN architecture inspired by WAE-DCGAN from https://arxiv.org/pdf/1511.06434.pdf but without the GAN component.
+    Extended to the variational setting and to our unified model.
+    """
+    def __init__(self, device, num_classes, num_colors, args):
+        super(DCNNNoVAE, self).__init__()
+
+        self.batch_norm = args.batch_norm
+        self.patch_size = args.patch_size
+        self.batch_size = args.batch_size
+        self.num_colors = num_colors
+        self.num_classes = num_classes
+        self.device = device
+        self.out_channels = args.out_channels
+
+        # for 28x28 images, e.g. MNIST. We set the innermost convolution's kernel from 4 to 3 and adjust the
+        # paddings in the decoder to upsample correspondingly. This way the incoming spatial dimensionality
+        # to the latent space stays the same as with 32x32 resolution
+        self.inner_kernel_size = 4
+        self.inner_padding = 0
+        self.outer_padding = 1
+        if args.patch_size < 32:
+            self.inner_kernel_size = 3
+            self.inner_padding = 1
+            self.outer_padding = 0
+
+        self.seen_tasks = []
+
+        self.num_samples = args.var_samples
+        self.latent_dim = args.var_latent_dim
+
+        # Previous model for lwf predictions
+        self.prev_model = None
+
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
+
+        self.encoder = nn.Sequential(OrderedDict([
+            ('encoder_layer1', SingleConvLayer(1, self.num_colors, 128, kernel_size=4, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer2', SingleConvLayer(2, 128, 256, kernel_size=4, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer3', SingleConvLayer(3, 256, 512, kernel_size=4, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer4', SingleConvLayer(4, 512, 1024, kernel_size=self.inner_kernel_size, stride=2, padding=0,
+                                               batch_norm=self.batch_norm))
+        ]))
+
+        self.enc_channels, self.enc_spatial_dim_x, self.enc_spatial_dim_y = get_feat_size(self.encoder, self.patch_size,
+                                                                                          self.num_colors)
+        self.latent_mu = nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels,
+                                   self.latent_dim, bias=False)
+        self.latent_std = nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels,
+                                    self.latent_dim, bias=False)
+        
+
+        #self.classifier = nn.Sequential(nn.Linear(self.latent_dim, num_classes, bias=False))
+        self.classifier = nn.Sequential(nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels, 
+                                                num_classes, bias=False))
+
+        #self.latent_decoder = SingleLinearLayer(0, self.latent_dim, self.enc_spatial_dim_x * self.enc_spatial_dim_y *
+        #                                        self.enc_channels, batch_norm=self.batch_norm)
+
+        #self.decoder = nn.Sequential(OrderedDict([
+        #    ('decoder_layer1', SingleConvLayer(1, 1024, 512, kernel_size=4, stride=2, padding=self.inner_padding,
+        #                                       batch_norm=self.batch_norm, is_transposed=True)),
+        #    ('decoder_layer2', SingleConvLayer(2, 512, 256, kernel_size=4, stride=2, padding=self.outer_padding,
+        #                                       batch_norm=self.batch_norm, is_transposed=True)),
+        #    ('decoder_layer3', SingleConvLayer(3, 256, 128, kernel_size=4, stride=2, padding=self.outer_padding,
+        #                                       batch_norm=self.batch_norm, is_transposed=True)),
+        #    ('decoder_layer4', nn.ConvTranspose2d(128, self.out_channels, kernel_size=4, stride=2,
+        #                                          padding=1, bias=False))
+        #]))
+
+    def encode(self, x):
+        x = self.encoder(x)
+        x = x.view(x.size(0), -1)
+        #z_mean = self.latent_mu(x)
+        #z_std = self.latent_std(x)
+        return x
+
+    #def reparameterize(self, mu, std):
+    #    eps = std.data.new(std.size()).normal_()
+    #    return eps.mul(std).add(mu)
+
+    #def decode(self, z):
+    #    z = self.latent_decoder(z)
+    #    z = z.view(z.size(0), self.enc_channels, self.enc_spatial_dim_x, self.enc_spatial_dim_y)
+    #    x = self.decoder(z)
+    #    return x
+
+    #def generate(self):
+    #    z = torch.randn(self.batch_size, self.latent_dim).to(self.device)
+    #    x = self.decode(z)
+    #    x = torch.sigmoid(x)
+    #    return x
+
+    def forward(self, x):
+        z = self.encode(x)
+        #output_samples = torch.zeros(self.num_samples, x.size(0), self.out_channels, self.patch_size,
+        #                             self.patch_size).to(self.device)
+        classification_samples = torch.zeros(self.num_samples, x.size(0), self.num_classes).to(self.device)
+        for i in range(self.num_samples):
+            #z = self.reparameterize(z_mean, z_std)
+            #output_samples[i] = self.decode(z)
+            classification_samples[i] = self.classifier(z)
+        return classification_samples, None, None, None
+
+
 class WRNBasicBlock(nn.Module):
     """
     Convolutional or transposed convolutional block consisting of multiple 3x3 convolutions with short-cuts,
