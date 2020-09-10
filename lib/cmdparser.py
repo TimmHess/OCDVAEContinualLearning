@@ -100,6 +100,7 @@ parser.add_argument('--use-lwf', default=False, action='store_true',
                     help="Uses lwf regularization")
 parser.add_argument('--lmda', type=float, default=0.5, help="Lwf regularization strength")
 
+
 # Open set arguments
 parser.add_argument('--openset-generative-replay', default=False, action='store_true',
                     help='Turn on openset detection for generative replay')
@@ -129,3 +130,7 @@ parser.add_argument('--out-channels', default=60, type=int, help='number of outp
 parser.add_argument('--pixel-cnn-channels', default=60, type=int, help='num filters in PixelCNN convs (default: 60)')
 parser.add_argument('--pixel-cnn-layers', default=3, type=int, help='number of PixelCNN layers (default: 3)')
 parser.add_argument('--pixel-cnn-kernel-size', default=7, type=int, help='PixelCNN conv kernel size (default: 7)')
+
+# Debug
+parser.add_argument('--full-conf-mat', action='store_true', default=False,
+                    help='Extends the confusion matrix for multi-headed incremental instance training')   

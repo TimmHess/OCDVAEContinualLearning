@@ -35,6 +35,9 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
     if not isinstance(classifier[-1].bias, type(None)):
         classifier[-1].bias.data[0:-class_increment] = tmp_bias
 
+    print("classifier weight", classifier[-1].weight.shape)
+    return
+
 def consolidate_classifier(model):
     print("consolidate")
     """
@@ -502,19 +505,6 @@ class DCNNNoVAE(nn.Module):
         self.classifier = nn.Sequential(nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels, 
                                                 num_classes, bias=False))
 
-        #self.latent_decoder = SingleLinearLayer(0, self.latent_dim, self.enc_spatial_dim_x * self.enc_spatial_dim_y *
-        #                                        self.enc_channels, batch_norm=self.batch_norm)
-
-        #self.decoder = nn.Sequential(OrderedDict([
-        #    ('decoder_layer1', SingleConvLayer(1, 1024, 512, kernel_size=4, stride=2, padding=self.inner_padding,
-        #                                       batch_norm=self.batch_norm, is_transposed=True)),
-        #    ('decoder_layer2', SingleConvLayer(2, 512, 256, kernel_size=4, stride=2, padding=self.outer_padding,
-        #                                       batch_norm=self.batch_norm, is_transposed=True)),
-        #    ('decoder_layer3', SingleConvLayer(3, 256, 128, kernel_size=4, stride=2, padding=self.outer_padding,
-        #                                       batch_norm=self.batch_norm, is_transposed=True)),
-        #    ('decoder_layer4', nn.ConvTranspose2d(128, self.out_channels, kernel_size=4, stride=2,
-        #                                          padding=1, bias=False))
-        #]))
 
     def encode(self, x):
         x = self.encoder(x)

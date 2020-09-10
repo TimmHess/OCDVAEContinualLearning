@@ -50,13 +50,11 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
     # train
     for i, (inp, target) in enumerate(Dataset.train_loader):
-        # multiheaded: move targets to head space
-        if args.is_multiheaded:
+        if args.is_multiheaded and not args.incremental_instance:
+            # multiheaded incremental classes: move targets to head space
             target = target.clone()
             for i in range(target.size(0)):
-                #print(Dataset.maps_target_head[-1][target.numpy()[i]])
                 target[i] = Dataset.maps_target_head[-1][target.numpy()[i]]
-            #print(target)
         
         # move data to device
         inp = inp.to(device)
@@ -91,14 +89,14 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             # set the target to work with the 256-way Softmax
             recon_target = (recon_target * 255).long()
 
-        # calculate loss
-        #if args.use_kl_regularization:
-        #    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, recon_samples, recon_target, mu, std,
-        #                                                model.module.prev_mu, model.module.prev_std, device, args)
-        #else:
+    
         if args.is_multiheaded:
-            class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-args.num_increment_tasks:], class_target, 
-                                                        recon_samples, recon_target, mu, std, device, args)
+            if not args.incremental_instance:
+                class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-args.num_increment_tasks:], class_target, 
+                                                            recon_samples, recon_target, mu, std, device, args)
+            else:
+                class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-Dataset.num_classes:], class_target, 
+                                                            recon_samples, recon_target, mu, std, device, args)
         else:
             class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
                                                         recon_samples, recon_target, mu, std, device, args)
@@ -119,8 +117,12 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             # loop through each sample for each input and calculate the correspond loss. Normalize the losses.
             for s in range(prev_pred_class_samples.size(0)):
                 if args.is_multiheaded:
-                    prev_cl_losses[s] = loss_fn_kd_multihead(class_samples[s][:,:-args.num_increment_tasks], prev_pred_class_samples[s], 
-                                                            task_sizes=args.num_increment_tasks)
+                    if not args.incremental_instance:
+                        prev_cl_losses[s] = loss_fn_kd_multihead(class_samples[s][:,:-args.num_increment_tasks], prev_pred_class_samples[s], 
+                                                                task_sizes=args.num_increment_tasks)
+                    else:
+                        prev_cl_losses[s] = loss_fn_kd_multihead(class_samples[s][:,:-Dataset.num_classes], prev_pred_class_samples[s], 
+                                                                task_sizes=Dataset.num_classes)
                 else:
                     prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
 
@@ -138,14 +140,15 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                 + SI.surrogate_loss(model.module.latent_mu, model.module.si_storage_mu)
                 + SI.surrogate_loss(model.module.latent_std, model.module.si_storage_std))
 
-            #print(loss_si.item())
             loss += loss_si
-
             si_losses.update(loss_si.item(), inp.size(0))
 
         # take mean to compute accuracy. Note if variational samples are 1 this only gets rid of a dummy dimension.
         if args.is_multiheaded:
-            output = torch.mean(class_samples[:,:,-args.num_increment_tasks:], dim=0)
+            if not args.incremental_instance:
+                output = torch.mean(class_samples[:,:,-args.num_increment_tasks:], dim=0)
+            else:
+                output = torch.mean(class_samples[:,:,-Dataset.num_classes:], dim=0)
         else:
             output = torch.mean(class_samples, dim=0)
 
@@ -164,8 +167,6 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
-        #if args.use_si:
-        #    print("cl grad:", model.module.classifier[-1].weight.grad)
         optimizer.step()
 
         # SI: update running si paramters
