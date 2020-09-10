@@ -74,9 +74,9 @@ def main():
         #if args.use_kl_regularization:
         #    save_path += '_kl-reg'
         if args.use_si:
-            save_path += '_si'
+            save_path += '_si' + '_' + str(args.lmda)
         if args.use_lwf:
-            save_path += '_lwf'
+            save_path += '_lwf' + '_' + str(args.lmda)
     if args.cross_dataset:
         save_path += '_cross_dataset_' + args.dataset_order
 
