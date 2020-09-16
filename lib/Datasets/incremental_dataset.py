@@ -520,6 +520,9 @@ def get_incremental_dataset(parent_class, args):
 
             self.class_to_idx = {}
 
+            # List of training sets (needed for upper bound)
+            self.mh_trainsets = []
+
             # List of validation sets
             self.mh_valsets = []
             self.curr_task_index = 0
@@ -542,6 +545,10 @@ def get_incremental_dataset(parent_class, args):
             print(self.maps_target_head)
             print("maps head target")
             print(self.maps_head_target)
+
+            # Append trainset to list of trainsets if upper bound run
+            if args.train_incremental_upper_bound:
+                self.mh_trainsets.append(copy.deepcopy(self.trainset))
 
             # Append valset to list of valsets
             self.mh_valsets.append(copy.deepcopy(self.valset))
@@ -709,6 +716,11 @@ def get_incremental_dataset(parent_class, args):
             if upper_bound_baseline:
                 # concatenate new task with all previously seen tasks
                 new_trainsets = [self.trainsets.pop(j) for j in sorted_new_tasks]
+
+                # Store new trainset if multiheaded upper bound run (need them to be separated)
+                if args.train_incremental_upper_bound:
+                    self.mh_trainsets.append(copy.deepcopy(torch.utils.data.ConcatDataset(new_trainsets)))
+
                 new_trainsets.append(self.trainset)
                 self.trainset = torch.utils.data.ConcatDataset(new_trainsets)
             elif generative_replay or openset_generative_replay:
@@ -747,7 +759,7 @@ def get_incremental_dataset(parent_class, args):
             self.maps_head_target.append(head_to_target)
             print(self.maps_target_head)
             print(self.maps_head_target)
-            
+
             # Store valset
             self.mh_valsets.append(copy.deepcopy(self.valset))
 
@@ -1999,219 +2011,6 @@ def get_incremental_dataset(parent_class, args):
                             num_workers=workers, pin_memory=is_gpu, drop_last=True)
             return
 
-        # def generate_seen_tasks(self, model, batch_size, seen_dataset_size, writer, save_path,
-        #                         openset=False, openset_threshold=0.2, openset_tailsize=0.05,
-        #                         autoregression=False):
-        #     data = []
-        #     zs = []
-        #     targets = []
-
-        #     # flag to default to regular generative replay if openset fit is not successfull
-        #     openset_success = True
-
-        #     if openset:
-        #         # Start with fitting the Weibull functions based on the available train data and the classes seen
-        #         # so far. Note that if generative replay has been called before after the first task increment,
-        #         # this means that previous train data consists of already generated data.
-        #         # Evaluate the training dataset to find the correctly classified examples.
-        #         num_seen_classes = self.num_classes #sum(self.num_classes_per_task[:len(self.seen_tasks) - self.args.num_increment_tasks])
-
-        #         dataset_train_dict = eval_dataset(model, self.train_loader, num_seen_classes, self.device,
-        #                                           samples=self.args.var_samples)
-
-        #         # Find the per class mean of z, i.e. the class specific regions of highest density of the approximate
-        #         # posterior.
-        #         z_means = mr.get_means(dataset_train_dict["zs_correct"])
-
-        #         # get minimum and maximum values in case there is class clusters lying outside of the standard Gaussian
-        #         # range. This can be the case if the approximate posterior deviates a lot from the prior.
-        #         # If sampling from a standard Normal distribution fails, these values will be used in a second attempt
-        #         # at sampling. Note that we have not used this in the paper (as it never occurred) but add this as it
-        #         # could potentially aid users in the future.
-        #         use_new_z_bound = False
-        #         z_mean_bound = -100000
-        #         for c in range(len(z_means)):
-        #             if isinstance(z_means[c], torch.Tensor):
-        #                 tmp_bound = torch.max(torch.abs(z_means[c])).cpu().item()
-        #                 if tmp_bound > z_mean_bound:
-        #                     z_mean_bound = tmp_bound
-
-        #         # Calculate the correctly classified data point's distance in latent space to the per class mean zs.
-        #         train_distances_to_mu = mr.calc_distances_to_means(z_means, dataset_train_dict["zs_correct"],
-        #                                                            self.args.distance_function)
-        #         # # determine tailsize according to set percentage and dataset size. As in the incremental
-        #         # class scenario it is assumed that the number of samples per class per dataset is balanced.
-        #         #tailsizes = []
-        #         tailsizes = np.array([0] * self.num_classes)
-        #         for i in range(len(self.num_images_per_dataset) - 1):
-        #             #tailsizes.append([int(((self.num_images_per_dataset[i+1] - self.num_images_per_dataset[i]) *
-        #             #                       openset_tailsize) / self.num_classes)] *
-        #             #                 self.num_classes)
-        #             tailsizes += np.array([int(((self.num_images_per_dataset[i+1] - self.num_images_per_dataset[i]) *
-        #                                    openset_tailsize) / self.num_classes)] * self.num_classes)
-        #         # extend the tailsize for each dataset to all of its classes (assuming that each dataset is balanced)
-        #         #tailsizes = [item for sublist in tailsizes for item in sublist]
-        #         tailsizes = list(tailsizes)
-        #         print("Fitting Weibull models with tailsizes: ", tailsizes)
-        #         # fit the weibull models
-        #         weibull_models, valid_weibull = mr.fit_weibull_models(train_distances_to_mu, tailsizes)
-
-        #         if not valid_weibull:
-        #             print("Open set fit was not successful")
-        #             openset_success = False
-        #         else:
-        #             print("Using generative model to replay old data with openset detection")
-        #             # set class counters to count amount of generations
-        #             class_counters = [0] * num_seen_classes
-        #             print("class_counter len", len(class_counters))
-
-        #             # calculate number of samples per class according to original dataset sizes
-        #             #samples_per_class = []
-        #             samples_per_class = np.array([0] * self.num_classes)
-        #             for i in range(len(self.num_images_per_dataset) - 1):
-        #                 #samples_per_class.append([int(math.ceil((self.num_images_per_dataset[i+1] -
-        #                 #                                         self.num_images_per_dataset[i]) /
-        #                 #                                        self.num_classes))] *
-        #                 #                         self.num_classes)
-        #                 samples_per_class += np.array([int(math.ceil((self.num_images_per_dataset[i+1] -
-        #                                                          self.num_images_per_dataset[i]) /
-        #                                                         self.num_classes))] * self.num_classes)
-
-        #             #samples_per_class = [item for sublist in samples_per_class for item in sublist]
-        #             samples_per_class = list(samples_per_class)
-        #             print("samples_per_class", samples_per_class)
-                    
-        #             openset_attempts = 0
-
-        #             # progress bar
-        #             pbar = tqdm(total=seen_dataset_size)
-        #             # as long as the desired generated dataset size is not reached, continue
-        #             while sum(class_counters) < seen_dataset_size:
-        #                 # sample zs and classify them. Sort them according to classes
-        #                 z_dict = sample_per_class_zs(model, num_seen_classes, batch_size, self.device,
-        #                                              use_new_z_bound, z_mean_bound)
-        #                 # Calculate the distance of each z to the per class mean z.
-        #                 z_samples_distances_to_mean = mr.calc_distances_to_means(z_means, z_dict["z_samples"],
-        #                                                                          self.args.distance_function)
-        #                 # Evaluate the the statistical outlier probability using the respective Weibull model
-        #                 z_samples_outlier_probs = mr.calc_outlier_probs(weibull_models, z_samples_distances_to_mean)
-
-        #                 # For each class reject or accept the samples based on outlier probability and chosen prior.
-        #                 for i in range(num_seen_classes):
-        #                     # only add images if per class sample amount hasn't been surpassed yet in order
-        #                     # to balance the dataset
-        #                     for j in range(len(z_samples_outlier_probs[i])):
-        #                         # check the openset threshold for each example and only add if generation is not
-        #                         # classified as openset outlier (i.e. somewhere in "unseen" latent space)
-        #                         if class_counters[i] < samples_per_class[i]:
-        #                             if z_samples_outlier_probs[i][j] < openset_threshold:
-        #                                 zs.append(z_dict["z_samples"][i][j])
-        #                                 targets.append(i)
-        #                                 class_counters[i] += 1
-        #                                 pbar.update(1)
-        #                         else:
-        #                             break
-
-        #                 # increment the number of open set attempts
-        #                 openset_attempts += 1
-        #                 #print(openset_attempts)
-
-        #                 # time out if none of the samples pass the above test. This can happen if either the
-        #                 # approximate posterior has not been optimized properly and is very far away from the prior
-        #                 # or if the rejection prior has been set to something extremely small (like 0.01%).
-        #                 if openset_attempts == 2000 and any([val == 0 for val in class_counters]):
-        #                     # reset samples
-        #                     data = []
-        #                     zs = []
-        #                     targets = []
-
-        #                     # if sampling from standard Gaussian failed the first time, try with different prior std
-        #                     if use_new_z_bound:
-        #                         print("\n Open set generative replay timeout")
-        #                         openset_success = False
-        #                         break
-        #                     else:
-        #                         print("\n Open set generative replay from standard Gaussian failed. Trying sampling "
-        #                               "with modified variance bound")
-        #                         use_new_z_bound = True
-        #                         openset_attempts = 0
-
-        #             pbar.close()
-
-        #             # once all the samples from the prior have been accepted to fill the entire dataset size we
-        #             # proceed with generating the actual data points using the probabilistic decoder.
-        #             if openset_success:
-        #                 print("Openset sampling successful. Generating dataset")
-        #                 zs = torch.stack(zs, dim=0)
-        #                 targets = torch.LongTensor(targets)
-
-        #                 # actually generate images from valid zs
-        #                 for i in trange(0, len(zs), batch_size):
-        #                     gen = model.module.decode(zs[i:i + batch_size])
-        #                     gen = torch.sigmoid(gen)
-        #                     if autoregression:
-        #                         gen = model.module.pixelcnn.generate(gen)
-        #                     data.append(gen.data.cpu())
-        #                 data = torch.cat(data, dim=0)
-
-        #                 # get a subset for visualization and distribute it evenly along classes
-        #                 _, sd_idx = torch.sort(targets)
-        #                 subset_idx = sd_idx[torch.floor(torch.arange(0, data.size(0),
-        #                                                              data.size(0) / self.vis_size)).long()]
-        #                 viz_subset = data[subset_idx]
-
-        #                 imgs = torchvision.utils.make_grid(viz_subset, nrow=int(math.sqrt(self.vis_size)),
-        #                                                    padding=5)
-        #                 torchvision.utils.save_image(viz_subset, os.path.join(save_path, 'samples_seen_tasks_' +
-        #                                                                       str(len(self.seen_tasks) -
-        #                                                                           self.num_increment_tasks) + '.png'),
-        #                                              nrow=int(math.sqrt(self.vis_size)), padding=5)
-        #                 writer.add_image('openset_generation_snapshot', imgs, len(self.seen_tasks) -
-        #                                  self.num_increment_tasks)
-
-        #                 # return the new trainset.
-        #                 trainset = torch.utils.data.TensorDataset(data, targets)
-        #                 return trainset
-
-        #     if not openset or not openset_success:
-        #         print("Using generative model to replay old data")
-        #         for i in trange(0, int(seen_dataset_size/batch_size)):
-        #             # sample from prior
-        #             z_samples = torch.randn(batch_size, model.module.latent_dim).to(self.device)
-
-        #             # calculate probabilistic decoder, generate data points
-        #             gen = model.module.decode(z_samples)
-        #             gen = torch.sigmoid(gen)
-        #             if(autoregression):
-        #                 gen = model.module.pixelcnn.generate(gen)
-
-        #             # classify the samples from the prior and set the label corrispondingly
-        #             c1 = model.module.classifier(z_samples)
-        #             c1 = torch.nn.functional.softmax(c1, dim=1)
-        #             label = torch.argmax(c1, dim=1)
-        #             data.append(gen.data.cpu())
-        #             targets.append(label.data.cpu())
-
-        #         # need to detach from graph as otherwise the "require grad" will crash auto differentiation
-        #         data = torch.cat(data, dim=0)
-        #         targets = torch.cat(targets, dim=0)
-
-        #         # get a subsets for visualization
-        #         _, sd_idx = torch.sort(targets)
-        #         subset_idx = sd_idx[torch.floor(torch.arange(0, data.size(0), data.size(0) / self.vis_size)).long()]
-        #         viz_subset = data[subset_idx]
-
-        #         imgs = torchvision.utils.make_grid(viz_subset, nrow=int(math.sqrt(self.vis_size)), padding=5)
-        #         torchvision.utils.save_image(viz_subset, os.path.join(save_path, 'samples_seen_tasks_' +
-        #                                                               str(len(self.seen_tasks) -
-        #                                                                   self.num_increment_tasks) + '.png'),
-        #                                      nrow=int(math.sqrt(self.vis_size)), padding=5)
-        #         writer.add_image('dataset_generation_snapshot', imgs, len(self.seen_tasks) -
-        #                          self.num_increment_tasks)
-            
-        #     # return generated trainset
-        #     trainset = torch.utils.data.TensorDataset(data, targets)
-        #     return trainset
 
 
     # return corresponding class
