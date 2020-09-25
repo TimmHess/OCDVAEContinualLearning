@@ -1872,8 +1872,8 @@ def get_incremental_dataset(parent_class, args):
             self.trainset, self.valset = self.__get_initial_dataset()
 
             # Init separate additional validation sets for
-            self.base_valset = copy.copy(self.valset)
-            self.new_valset = copy.copy(self.valset)
+            self.base_valset = copy.deepcopy(self.valset)
+            self.new_valset = copy.deepcopy(self.valset)
 
             # Append valset to list of valsets
             self.mh_valsets.append(copy.deepcopy(self.valset))

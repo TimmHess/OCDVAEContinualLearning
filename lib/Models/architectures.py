@@ -290,6 +290,7 @@ class MLPNoVAE(nn.Module):
 
         self.classifier = nn.Sequential(nn.Linear(400, num_classes, bias=False))
 
+        self.prev_model = None
         #self.decoder = nn.Sequential(OrderedDict([
         #    ('decoder_layer0', SingleLinearLayer(0, self.latent_dim, 400, batch_norm=self.batch_norm)),
         #    ('decoder_layer1', SingleLinearLayer(1, 400, 400, batch_norm=self.batch_norm)),
