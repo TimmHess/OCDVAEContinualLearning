@@ -118,7 +118,11 @@ def get_incremental_dataset(parent_class, args):
                     # they are now relabeled 5->0 and 7->1. We do this so we can be agnostic to task ordering and
                     # because the growing classifier at any time only has the corresponding amount of units
                     # (e.g. in the example case of 5,7 it has only 2 units at the beginning)
-                    relabeled_target = self.task_order.index(target)
+                    #relabeled_target = self.task_order.index(target)
+                    try:
+                        relabeled_target = self.task_order.index(target)
+                    except:
+                        relabeled_target = -1 # this target should never be used, thus "-1" shall provoke crashes
 
                     tensors_list[target].append(inp)
                     targets_list[target].append(relabeled_target)
