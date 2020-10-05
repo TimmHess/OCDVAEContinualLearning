@@ -103,6 +103,8 @@ def main():
     # Dataset loading
     data_init_method = getattr(datasets, args.dataset)
     dataset = data_init_method(torch.cuda.is_available(), args)
+    print("dataset:", dataset)
+    
     # get the number of classes from the class dictionary
     num_classes = dataset.num_classes
 
@@ -113,8 +115,8 @@ def main():
 
         # get the method to create the incremental dataste (inherits from the chosen data loader)
         inc_dataset_init_method = get_incremental_dataset(data_init_method, args)
-        print(inc_dataset_init_method)
-
+        print("inc data init method:", inc_dataset_init_method)
+        
         # different options for class incremental vs. cross-dataset experiments
         if args.cross_dataset:
             # if a task order file is specified, load the task order from it

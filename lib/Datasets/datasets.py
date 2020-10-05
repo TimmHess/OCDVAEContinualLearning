@@ -13,7 +13,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import scipy.io.wavfile as wavf
 
-from lib.Datasets.Custom.incremnetal_instance_set import ClassificationSequence
+from lib.Datasets.Custom.incremnetal_instance_set import ClassificationSequence, SegmentationSequence
 
 class MNIST:
     """
@@ -1082,14 +1082,33 @@ class IncrementalClassificationSet:
 
 class IncrementalSegmentationSet:
     def __init__(self, is_gpu, args):
+        self.trainset, self.valset = self.get_dataset(args)
+
+        self.num_classes = self.trainset.num_classes
+        self.num_sequences = self.trainset.num_sequences
+        self.class_to_idx = self.trainset.class_to_idx
+
+        self.train_loader, self.val_loader = self.get_dataset_loader(args.batch_size, args.workers, is_gpu)
         return
 
     def get_dataset(self, args):
-        trainset = None
-        valset = None
+        trainset = SegmentationSequence(args.train_path_to_color, args.train_path_to_seg,
+            args.train_path_to_sequence_file, args.train_path_to_segmentation_file, args.train_path_to_classmap_file,
+            args.seg_img_size)
+        valset = SegmentationSequence(args.val_path_to_color, args.val_path_to_seg,
+            args.val_path_to_sequence_file, args.val_path_to_segmentation_file, args.val_path_to_classmap_file,
+            args.seg_img_size)
         return trainset, valset
 
     def get_dataset_loader(self, batch_size, workers, is_gpu):
-        train_loader = None
-        val_loader = None
+        train_loader = torch.utils.data.DataLoader(
+            self.trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=workers, pin_memory=is_gpu
+        )
+        val_loader = torch.utils.data.DataLoader(
+            self.valset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=workers, pin_memory=is_gpu
+        )
         return train_loader, val_loader

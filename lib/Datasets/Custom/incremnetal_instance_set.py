@@ -121,30 +121,26 @@ class ClassificationSequence(data.Dataset):
 
 
 
-class SegmentationDataset(data.Dataset):
+class SegmentationSequence(data.Dataset):
     def __init__(self, path_to_color, path_to_seg, sequence_file, segmentation_file, 
             classmap_file, patch_size, use_single_container=False):
-        #self.path_to_root = path_to_root
         self.patch_size = patch_size
-
         self.use_single_container = use_single_container
-
-        # Dict mapping string to label
-        #self.label_dict = self.__load_label_dict(labelmap_file)
-        #self.class_to_idx = self.__get_class_to_idx(self.label_dict)
-        #self.num_classes = self.__get_num_classes(self.label_dict)
         
         # Dict mapping a range of labels to a single class label
         self.classmap = self.__load_classmap(classmap_file)
-        print("classmap:")
-        print(self.classmap)
-        print("")
+        #print("classmap:")
+        #print(self.classmap)
+        #print("")
         self.label_dict = self.__load_label_dict(segmentation_file)
-        print("label_dict:")
-        print(self.label_dict)
+        #print("label_dict:")
+        #print(self.label_dict)
         self.sequence_dict = self.__load_sequence_indices(sequence_file)
-        print("sequence_dict:")
-        print(self.sequence_dict)
+        #print("sequence_dict:")
+        #print(self.sequence_dict)
+
+        self.num_classes = self.__get_num_classes(self.label_dict)
+        self.class_to_idx = self.__get_class_to_idx(self.label_dict)
 
         # List holding list for each sequence containing (img_path, target)
         self.sequence_data = []
@@ -215,13 +211,13 @@ class SegmentationDataset(data.Dataset):
         unique_labels = np.unique(target)
         # for each label get respective class name from label_dict (in numerical order to prevent overwriting of wrong labels)
         for unique_label in unique_labels:
-            print("unique_label", unique_label)
+            #print("unique_label", unique_label)
             # get class_name for label
             label_name = self.__get_name_for_label(unique_label)
-            print("label_name", label_name)
+            #print("label_name", label_name)
             # get class_label for name
             class_label = self.classmap[label_name]
-            print("class_label", class_label)
+            #print("class_label", class_label)
             # convert all labels to class labels
             target[target == unique_label] = class_label # should access the original target no return required
         return
@@ -263,8 +259,6 @@ class SegmentationDataset(data.Dataset):
     def __get_class_to_idx(self, label_dict):
         class_to_idx = {}
         for key in label_dict:
-            #print(key)
-            #class_to_idx[label_dict[key]] = key
             class_to_idx[key] = label_dict[key]
         return class_to_idx
 
@@ -291,8 +285,6 @@ class SegmentationDataset(data.Dataset):
         return
 
     def __getitem__(self, index):
-        self.active_sequence_index = 1
-        index = 20
         image_path = self.sequence_data[self.active_sequence_index][0][index]
         target_path = self.sequence_data[self.active_sequence_index][1][index]
     
@@ -332,7 +324,7 @@ if(__name__ == "__main__"):
     path_to_segmentation = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Segmentation.json"
     path_to_classmap = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Classmap.json"
 
-    dataset = SegmentationDataset(path_to_color=train_path_to_color, 
+    dataset = SegmentationSequence(path_to_color=train_path_to_color, 
                             path_to_seg=train_path_to_seg, 
                             sequence_file=path_to_sequence, 
                             segmentation_file=path_to_segmentation, 

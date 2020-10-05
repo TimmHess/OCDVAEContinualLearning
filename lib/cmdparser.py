@@ -29,15 +29,20 @@ parser.add_argument('--labelmap_file', type=str, default=None,
                     help='Path to labelmap file for incremental sequence')
 
 # Segmentation
-parser.add_argument('--seg-img-size', type=str, default=None,
+parser.add_argument('--is_segmentation', action='store_true', default=False)
+parser.add_argument('--seg-img-size', nargs='*', type=int, default=None,
      help='Override of "patch-size" for segmentation application')
 parser.add_argument('--train_path_to_color', type=str, default=None)
 parser.add_argument('--train_path_to_seg', type=str, default=None)
 parser.add_argument('--val_path_to_color', type=str, default=None)
 parser.add_argument('--val_path_to_seg', type=str, default=None)
-parser.add_argument('--path_to_sequence_file', type=str, default=None)
-parser.add_argument('--path_to_segmentation_file', type=str, default=None)
-parser.add_argument('--path_to_classmap_file', type=str, default=None)
+parser.add_argument('--train_path_to_sequence_file', type=str, default=None)
+parser.add_argument('--train_path_to_segmentation_file', type=str, default=None)
+parser.add_argument('--train_path_to_classmap_file', type=str, default=None)
+parser.add_argument('--val_path_to_sequence_file', type=str, default=None)
+parser.add_argument('--val_path_to_segmentation_file', type=str, default=None)
+parser.add_argument('--val_path_to_classmap_file', type=str, default=None)
+
 
 # Tensorboard Logs
 parser.add_argument('--save_path_root', type=str, default="./",
