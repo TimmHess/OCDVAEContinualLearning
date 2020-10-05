@@ -1078,3 +1078,18 @@ class IncrementalClassificationSet:
             batch_size=batch_size, shuffle=True,
             num_workers=workers, pin_memory=is_gpu)
         return train_loader, val_loader
+
+
+class IncrementalSegmentationSet:
+    def __init__(self, is_gpu, args):
+        return
+
+    def get_dataset(self, args):
+        trainset = None
+        valset = None
+        return trainset, valset
+
+    def get_dataset_loader(self, batch_size, workers, is_gpu):
+        train_loader = None
+        val_loader = None
+        return train_loader, val_loader
