@@ -38,6 +38,33 @@ def grow_classifier(device, classifier, class_increment, weight_initializer):
     print("classifier weight", classifier[-1].weight.shape)
     return
 
+def grow_classifier_seg(device, classifier, num_additional_classes, weight_initializer):
+    in_channels = classifier[-1].in_channels
+    out_channels = classifier[-1].out_channels + num_additional_classes
+    kernel_size = classifier[-1].kernel_size
+    padding = classifier[-1].padding
+    stride = classifier[-1].stride
+    bias_flag = False
+
+    tmp_weights = classifier[-1].weight.data.clone()
+    if not isinstance(classifier[-1].bias, type(None)):
+        tmp_bias = classifier[-1].bias.data.clone()
+        bias_flag = True
+    
+    classifier[-1] = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, 
+                                    padding=padding, stride=stride, bias=bias_flag)
+    classifier[-1].to(device)
+    
+    # initialize the correctly shaped layer.
+    weight_initializer.layer_init(classifier[-1])
+
+    # copy back the temporarily saved parameters for the slice of previously trained classes.
+    classifier[-1].weight.data[0:-num_additional_classes,:,:] = tmp_weights
+    if not isinstance(classifier[-1].bias, type(None)):
+        classifier[-1].bias.data[0:-num_additional_classes] = tmp_bias
+
+    return
+
 def consolidate_classifier(model):
     print("consolidate")
     """
@@ -716,3 +743,142 @@ class WRN(nn.Module):
             output_samples[i] = self.decode(z)
             classification_samples[i] = self.classifier(z)
         return classification_samples, output_samples, z_mean, z_std
+
+
+"""
+Segmentation Models
+"""
+class DCNNNoVAESeg(nn.Module):
+    """
+    CNN architecture inspired by WAE-DCGAN from https://arxiv.org/pdf/1511.06434.pdf but without the GAN component.
+    Extended to the variational setting and to our unified model.
+    """
+    def __init__(self, device, num_classes, num_colors, args):
+        super(DCNNNoVAESeg, self).__init__()
+
+        self.batch_norm = args.batch_norm
+        self.patch_size = args.seg_img_size[0]
+        self.batch_size = args.batch_size
+        self.num_colors = num_colors
+        self.num_classes = num_classes
+        self.device = device
+        #self.out_channels = args.out_channels
+        self.out_channels = num_classes
+
+        # for 28x28 images, e.g. MNIST. We set the innermost convolution's kernel from 4 to 3 and adjust the
+        # paddings in the decoder to upsample correspondingly. This way the incoming spatial dimensionality
+        # to the latent space stays the same as with 32x32 resolution
+        self.inner_kernel_size = 4
+        self.inner_padding = 0
+        self.outer_padding = 1
+        if args.patch_size < 32:
+            self.inner_kernel_size = 3
+            self.inner_padding = 1
+            self.outer_padding = 0
+
+        self.seen_tasks = []
+
+        self.num_samples = args.var_samples
+        self.latent_dim = args.var_latent_dim
+
+        # Previous model for lwf predictions
+        self.prev_model = None
+
+        # SI Storage Unit
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_mu = SI.SI_StorageUnit()
+        self.si_storage_std = SI.SI_StorageUnit()
+        self.prev_classifier_weights = None # cw in AR1 paper
+        self.prev_classifier_bias = None # currently not in use
+        self.temp_classifier_weights = None # tw in AR1 paper
+        self.temp_classifier_bias = None # currently not in use
+
+        self.encoder = nn.Sequential(OrderedDict([
+            ('encoder_layer1', SingleConvLayer(1, self.num_colors, 64, kernel_size=4, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer2', SingleConvLayer(2, 64, 128, kernel_size=4, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer3', SingleConvLayer(3, 128, 256, kernel_size=4, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer4', SingleConvLayer(4, 256, 256, kernel_size=self.inner_kernel_size, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer5', SingleConvLayer(5, 256, 512, kernel_size=self.inner_kernel_size, stride=2, padding=1,
+                                               batch_norm=self.batch_norm)),
+            ('encoder_layer6', SingleConvLayer(6, 512, 1024, kernel_size=self.inner_kernel_size, stride=2, padding=0,
+                                               batch_norm=self.batch_norm))
+        ]))
+
+        self.enc_channels, self.enc_spatial_dim_x, self.enc_spatial_dim_y = get_feat_size(self.encoder, self.patch_size,
+                                                                                          self.num_colors)
+        print("stuff:", self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels)
+        self.latent_mu = nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels,
+                                   self.latent_dim, bias=False)
+        self.latent_std = nn.Linear(self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels,
+                                    self.latent_dim, bias=False)
+        
+        self.bottleneck = SingleLinearLayer(0, self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels, 
+                                                self.latent_dim, batch_norm=self.batch_norm)
+
+        self.latent_decoder = nn.Linear(self.latent_dim, self.enc_spatial_dim_x * self.enc_spatial_dim_y *
+                                        self.enc_channels, bias=False)
+        
+        self.decoder = nn.Sequential(OrderedDict([
+            ('decoder_layer1', SingleConvLayer(1, 1024, 512, kernel_size=4, stride=2, padding=self.inner_padding,
+                                               batch_norm=self.batch_norm, is_transposed=True)),
+            ('decoder_layer2', SingleConvLayer(2, 512, 256, kernel_size=4, stride=2, padding=self.outer_padding,
+                                               batch_norm=self.batch_norm, is_transposed=True)),
+            ('decoder_layer3', SingleConvLayer(3, 256, 256, kernel_size=4, stride=2, padding=self.outer_padding,
+                                               batch_norm=self.batch_norm, is_transposed=True)),
+            ('decoder_layer4', SingleConvLayer(4, 256, 128, kernel_size=4, stride=2, padding=self.outer_padding,
+                                               batch_norm=self.batch_norm, is_transposed=True)),
+            ('decoder_layer5', SingleConvLayer(5, 128, 64, kernel_size=4, stride=2, padding=self.outer_padding,
+                                               batch_norm=self.batch_norm, is_transposed=True)),
+            ('decoder_layer6', SingleConvLayer(6, 64, 64, kernel_size=4, stride=2, padding=self.outer_padding,
+                                               batch_norm=self.batch_norm, is_transposed=True))
+        ]))
+
+        #self.classifier = nn.Sequential(nn.Linear(self.latent_dim, num_classes, bias=False))
+        self.classifier = nn.Sequential(nn.Conv2d(64, num_classes, kernel_size=3, stride=1,
+                                                padding=1, bias=False))
+
+    def encode(self, x):
+        x = self.encoder(x)
+        x = x.view(x.size(0), -1)
+        #z_mean = self.latent_mu(x)
+        #z_std = self.latent_std(x)
+        return x
+
+    #def reparameterize(self, mu, std):
+    #    eps = std.data.new(std.size()).normal_()
+    #    return eps.mul(std).add(mu)
+
+    def decode(self, z):
+        z = self.latent_decoder(z)
+        z = z.view(z.size(0), self.enc_channels, self.enc_spatial_dim_x, self.enc_spatial_dim_y)
+        x = self.decoder(z)
+        return x
+
+    #def generate(self):
+    #    z = torch.randn(self.batch_size, self.latent_dim).to(self.device)
+    #    x = self.decode(z)
+    #    x = torch.sigmoid(x)
+    #    return x
+
+    def forward(self, x):
+        z = self.encode(x)
+        #output_samples = torch.zeros(self.num_samples, x.size(0), self.out_channels, self.patch_size,
+        #                             self.patch_size).to(self.device)
+        #print("after encode:", z.shape)
+        z = self.bottleneck(z)
+        x = self.decode(z)
+
+        #print("after bn:", z.shape)
+        classification_samples = torch.zeros(self.num_samples, x.size(0), self.num_classes, x.size(2), x.size(3)).to(self.device)
+        for i in range(self.num_samples):
+            #z = self.reparameterize(z_mean, z_std)
+            #output_samples[i] = self.decode(z)
+            #print("after decode:", x.shape)
+            classification_samples[i] = self.classifier(x)
+
+        #print("output", classification_samples.shape)
+        return classification_samples, None, None, None

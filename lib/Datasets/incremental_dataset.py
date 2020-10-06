@@ -2054,6 +2054,7 @@ def get_incremental_dataset(parent_class, args):
             self.args = args
             
             self.num_classes = self.trainset.num_classes
+            print("num classes")
             self.num_sequences = self.trainset.num_sequences
             print(self.class_to_idx)
 
@@ -2094,7 +2095,7 @@ def get_incremental_dataset(parent_class, args):
                     target_list = []
                     datasets[j].set_sequence_index(sequence_index)
                     for i, (inp, target) in tqdm(enumerate(datasets[j])):
-                        if(i >= 100): # DEBUG
+                        if(i >= 1000): # DEBUG
                             break
                         tensor_list.append(inp)
                         target_list.append(target)

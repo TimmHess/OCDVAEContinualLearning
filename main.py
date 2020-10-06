@@ -21,7 +21,7 @@ import lib.Models.architectures as architectures
 from lib.Models.pixelcnn import PixelCNN
 import lib.Datasets.datasets as datasets
 from lib.Models.initialization import WeightInit, ZeroWeightInit
-from lib.Models.architectures import grow_classifier
+from lib.Models.architectures import grow_classifier, grow_classifier_seg
 from lib.cmdparser import parser
 from lib.Training.train import train
 from lib.Training.validate import validate
@@ -216,7 +216,10 @@ def main():
             # set the number of classes to base tasks + 1 because base tasks is always one less.
             # E.g. if you have 2 classes it's one task. This is a little inconsistent from the naming point of view
             # but we wanted a single variable to work for both class incremental as well as cross-dataset experiments
-            num_classes = args.num_base_tasks + 1
+            if(not args.is_segmentation):
+                num_classes = args.num_base_tasks + 1
+            else:
+                num_classes = args.num_initial_classes
             # multiply epochs by number of tasks
             epoch_multiplier = ((len(task_order) - (args.num_base_tasks + 1)) / args.num_increment_tasks) + 1
 
@@ -391,8 +394,13 @@ def main():
                         print("Incresed classes by " + str(dataset.num_classes) + ", for multi-headed incremental instance")
 
                 else:
-                    model.module.num_classes += args.num_increment_tasks
-                    grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                    if not args.is_segmentation:
+                        model.module.num_classes += args.num_increment_tasks
+                        grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                    else:
+                        # TODO: num increment tasks may be not the best way to increment -> cannot add multiple new classes in one increment
+                        model.module.num_classes += args.num_increment_tasks
+                        grow_classifier_seg(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
                     print("Classifier grown..")
                     
                 # Register new paramters to SI

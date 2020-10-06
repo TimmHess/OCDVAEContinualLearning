@@ -1,7 +1,7 @@
 import time
 import torch
 from lib.Utility.metrics import AverageMeter
-from lib.Utility.metrics import accuracy
+from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy
 from lib.Training.loss_functions import loss_fn_kd, loss_fn_kd_multihead
 from lib.Utility.visualization import visualize_image_grid
 import lib.Models.si as SI
@@ -208,6 +208,9 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             inp = inp.to(device)
             target = target.to(device)
 
+            #print("inp:", inp.shape)
+            #print("target:", target.shape)
+
             if epoch % args.epochs == 0 and i == 0:
                 visualize_image_grid(inp, writer, epoch + 1, 'train_inp_snapshot', save_path)
 
@@ -225,7 +228,9 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
             # compute model forward
             class_samples, recon_samples, mu, std = model(inp)
-
+            #print(class_samples.shape)
+            #print(target.shape)
+            
             # if we have an autoregressive model variant, further calculate the corresponding layers.
             if args.autoregression:
                 recon_samples_autoregression = torch.zeros(recon_samples.size(0), inp.size(0), 256, inp.size(1),
@@ -301,16 +306,23 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                 output = torch.mean(class_samples, dim=0)
 
             # record precision/accuracy and losses
-            prec1 = accuracy(output, target)[0]
-            top1.update(prec1.item(), inp.size(0))
-            if args.no_vae:
-                losses.update(class_loss.item(), inp.size(0))
-                class_losses.update(class_loss.item(), inp.size(0))
+            if not args.is_segmentation:
+                prec1 = accuracy(output, target)[0]
+                top1.update(prec1.item(), inp.size(0))
+                if args.no_vae:
+                    losses.update(class_loss.item(), inp.size(0))
+                    class_losses.update(class_loss.item(), inp.size(0))
+                else:
+                    losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
+                    class_losses.update(class_loss.item(), inp.size(0))
+                    recon_losses.update(recon_loss.item(), inp.size(0))
+                    kld_losses.update(kld_loss.item(), inp.size(0))
             else:
-                losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
-                class_losses.update(class_loss.item(), inp.size(0))
-                recon_losses.update(recon_loss.item(), inp.size(0))
-                kld_losses.update(kld_loss.item(), inp.size(0))
+                ious_cc = iou_class_condtitional(pred=output.clone(), target=target.clone())
+                #print("iou", ious_cc)
+                prec1 = iou_to_accuracy(ious_cc)
+                #print("prec1", prec1)
+                top1.update(prec1.item(), inp.size(0))
 
             # compute gradient and do SGD step
             optimizer.zero_grad()

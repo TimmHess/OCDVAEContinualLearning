@@ -139,8 +139,9 @@ class SegmentationSequence(data.Dataset):
         #print("sequence_dict:")
         #print(self.sequence_dict)
 
-        self.num_classes = self.__get_num_classes(self.label_dict)
-        self.class_to_idx = self.__get_class_to_idx(self.label_dict)
+        self.num_classes = self.__get_num_classes(self.classmap)
+        print("Num Classes: ", self.num_classes)
+        self.class_to_idx = self.__get_class_to_idx(self.classmap)
 
         # List holding list for each sequence containing (img_path, target)
         self.sequence_data = []

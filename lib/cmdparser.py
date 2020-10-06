@@ -30,6 +30,7 @@ parser.add_argument('--labelmap_file', type=str, default=None,
 
 # Segmentation
 parser.add_argument('--is_segmentation', action='store_true', default=False)
+parser.add_argument('--num_initial_classes', type=int, default=None)
 parser.add_argument('--seg-img-size', nargs='*', type=int, default=None,
      help='Override of "patch-size" for segmentation application')
 parser.add_argument('--train_path_to_color', type=str, default=None)

@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import ConfusionMeter
-from lib.Utility.metrics import accuracy
+from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy
 from lib.Utility.visualization import visualize_confusion
 from lib.Utility.visualization import visualize_image_grid
 from lib.Models.architectures import consolidate_classifier
@@ -266,9 +266,15 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     recon_output = torch.mean(recon_samples, dim=0)
 
                 # measure accuracy, record loss, fill confusion matrix
-                prec1 = accuracy(class_output, target)[0]
-                top1.update(prec1.item(), inp.size(0))
-                confusion.add(class_output.data, target)
+                if not args.is_segmentation:
+                    prec1 = accuracy(class_output, target)[0]
+                    top1.update(prec1.item(), inp.size(0))
+                    confusion.add(class_output.data, target)
+                else:
+                    ious_cc = iou_class_condtitional(pred=class_output.clone(), target=target.clone())
+                    prec1 = iou_to_accuracy(ious_cc)
+                    top1.update(prec1.item(), inp.size(0))
+                    # no confusion to add because of missing targets?
 
                 # measure elapsed time
                 batch_time.update(time.time() - end)
