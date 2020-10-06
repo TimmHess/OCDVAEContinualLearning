@@ -104,6 +104,40 @@ def loss_fn_kd_multihead(scores, target_scores, task_sizes, T=2.):
     return KD_losses
 
 
+def loss_fn_kd_2d(scores, target_scores, T=2.):
+    """Compute knowledge-distillation (KD) loss given [scores] and [target_scores].
+    Both [scores] and [target_scores] should be tensors, although [target_scores] should be repackaged.
+    'Hyperparameter': temperature"""
+
+    device = scores.device
+
+    log_scores_norm = F.log_softmax(scores / T, dim=1)
+    #log_scores_norm = log_scores_norm[:,:target_scores.shape[1],:,:]
+    targets_norm = F.softmax(target_scores / T, dim=1)
+    #targets_norm = targets_norm[:,:,:,:]
+
+    # if [scores] and [target_scores] do not have equal size, append 0's to [targets_norm]
+    n = scores.size(1)
+    if n>target_scores.size(1):
+        n_batch = scores.size(0)
+        zeros_to_add = torch.zeros(n_batch, n-target_scores.size(1), target_scores.size(2), target_scores.size(3))
+        zeros_to_add = zeros_to_add.to(device)
+        #print("targets_norm", target_norm.size())
+        #print("zeros_add", zeros_to_add.size())
+        targets_norm = torch.cat([targets_norm.detach(), zeros_to_add], dim=1)
+
+    # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
+    KD_loss_unnorm = -(targets_norm * log_scores_norm)
+    #print(KD_loss_unnorm.shape)
+    KD_loss_unnorm = KD_loss_unnorm.sum(dim=1)                      #--> sum over classes
+    #print(KD_loss_unnorm.shape)
+    KD_loss_unnorm = KD_loss_unnorm.mean()                          #--> average over batch
+
+    # normalize
+    KD_loss = KD_loss_unnorm * T**2
+    return KD_loss
+
+
 def unified_loss_function(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args):
     """
     Computes the unified model's joint loss function consisting of a term for reconstruction, a KL term between

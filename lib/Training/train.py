@@ -2,7 +2,7 @@ import time
 import torch
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy
-from lib.Training.loss_functions import loss_fn_kd, loss_fn_kd_multihead
+from lib.Training.loss_functions import loss_fn_kd, loss_fn_kd_multihead, loss_fn_kd_2d
 from lib.Utility.visualization import visualize_image_grid
 import lib.Models.si as SI
 from lib.Models.architectures import un_consolidate_classifier
@@ -277,8 +277,10 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                             prev_cl_losses[s] = loss_fn_kd_multihead(class_samples[s][:,:-Dataset.num_classes], prev_pred_class_samples[s], 
                                                                     task_sizes=Dataset.num_classes)
                     else:
-                        prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
-
+                        if not args.is_segmentation:
+                            prev_cl_losses[s] = loss_fn_kd(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
+                        else:
+                            prev_cl_losses[s] = loss_fn_kd_2d(class_samples[s], prev_pred_class_samples[s]) #/ torch.numel(target)
                 # average the loss over all samples per input
                 cl_lwf = torch.mean(prev_cl_losses, dim=0)
                 # add lwf loss to overall loss
