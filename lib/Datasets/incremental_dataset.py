@@ -2150,7 +2150,7 @@ def get_incremental_dataset(parent_class, args):
                 new_tasks.append(idx)
                 # also construct the new class_to_idx table for the confusion matrix (so we later see e.g. class 7 at
                 # the first place etc.
-                self.class_to_idx[str(idx)] = len(self.seen_tasks)
+                #self.class_to_idx[str(idx)] = len(self.seen_tasks)
                 self.seen_tasks.append(idx)
 
             # again, sort the new tasks so we can pop back to front.

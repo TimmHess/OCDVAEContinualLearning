@@ -290,10 +290,17 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
             # calculate SI loss (if SI is initialized)
             if args.use_si and model.module.si_storage.is_initialized:
-                loss_si = args.lmda * (
-                    SI.surrogate_loss(model.module.encoder, model.module.si_storage)
-                    + SI.surrogate_loss(model.module.latent_mu, model.module.si_storage_mu)
-                    + SI.surrogate_loss(model.module.latent_std, model.module.si_storage_std))
+                if not args.is_segmentation:
+                    loss_si = args.lmda * (
+                        SI.surrogate_loss(model.module.encoder, model.module.si_storage)
+                        + SI.surrogate_loss(model.module.latent_mu, model.module.si_storage_mu)
+                        + SI.surrogate_loss(model.module.latent_std, model.module.si_storage_std))
+                else:
+                    loss_si = args.lmda * (
+                        SI.surrogate_loss(model.module.encoder, model.module.si_storege_enc)
+                        + SI.surrogate_loss(model.module.bottleneck, model.module.si_storege_btn)
+                        + SI.surrogate_loss(model.module.decoder, model.module.si_storege_dec)
+                    )
 
                 loss += loss_si
                 si_losses.update(loss_si.item(), inp.size(0))
@@ -311,20 +318,22 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             if not args.is_segmentation:
                 prec1 = accuracy(output, target)[0]
                 top1.update(prec1.item(), inp.size(0))
-                if args.no_vae:
-                    losses.update(class_loss.item(), inp.size(0))
-                    class_losses.update(class_loss.item(), inp.size(0))
-                else:
-                    losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
-                    class_losses.update(class_loss.item(), inp.size(0))
-                    recon_losses.update(recon_loss.item(), inp.size(0))
-                    kld_losses.update(kld_loss.item(), inp.size(0))
             else:
                 ious_cc = iou_class_condtitional(pred=output.clone(), target=target.clone())
                 #print("iou", ious_cc)
                 prec1 = iou_to_accuracy(ious_cc)
                 #print("prec1", prec1)
                 top1.update(prec1.item(), inp.size(0))
+
+            if args.no_vae:
+                losses.update(class_loss.item(), inp.size(0))
+                class_losses.update(class_loss.item(), inp.size(0))
+            else:
+                losses.update((class_loss + recon_loss + kld_loss).item(), inp.size(0))
+                class_losses.update(class_loss.item(), inp.size(0))
+                recon_losses.update(recon_loss.item(), inp.size(0))
+                kld_losses.update(kld_loss.item(), inp.size(0))
+           
 
             # compute gradient and do SGD step
             optimizer.zero_grad()
@@ -333,9 +342,14 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
             # SI: update running si paramters
             if args.use_si:
-                SI.update_si_parameters(model.module.encoder, model.module.si_storage)
-                SI.update_si_parameters(model.module.latent_mu, model.module.si_storage_mu)
-                SI.update_si_parameters(model.module.latent_std, model.module.si_storage_std)
+                if not args.is_segmentation:
+                    SI.update_si_parameters(model.module.encoder, model.module.si_storage)
+                    SI.update_si_parameters(model.module.latent_mu, model.module.si_storage_mu)
+                    SI.update_si_parameters(model.module.latent_std, model.module.si_storage_std)
+                else:
+                    SI.update_si_parameters(model.module.encoder, model.module.si_storege_enc)
+                    SI.update_si_parameters(model.module.bottleneck, model.module.si_storege_btn)
+                    SI.update_si_parameters(model.module.decoder, model.module.si_storege_dec)
                 #print("SI: Updated running parameters")
 
             # measure elapsed time

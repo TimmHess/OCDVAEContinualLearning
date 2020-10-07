@@ -73,7 +73,30 @@ def iou_class_condtitional(pred, target):
 def iou_to_accuracy(ious):
     return ious.mean()
 
+def get_seg_confusion(pred, target):
+    # get num classes
+    num_classes = pred.shape[1]
 
+    # get argmax of prediction
+    pred = from_tensor(pred)
+    #print("pred unique", np.unique(pred.cpu().numpy()))
+
+    # conert pred and target to one hot
+    pred = to_one_hot(targets=pred, num_classes=num_classes).long()
+    target_one_hot = to_one_hot(targets=target, num_classes=num_classes).long()
+
+    # get number of pixels classifier for each class
+    # for each class map -> mask with each class from target -> sum to get number of pixels
+    pixel_counts = torch.zeros(num_classes, num_classes)
+    for i in range(num_classes):
+        for j in range(num_classes):
+            curr_pred = pred[:,i,:,:] * target_one_hot[:,j,:,:]
+            pixel_counts[j,i] = curr_pred.sum()
+    
+    # normalize the rows
+    #for i in range(pixel_counts.shape[0]):
+    #    pixel_counts[i,:] *= (1/pixel_counts[i,:].sum())
+    return pixel_counts
 
 
 class AverageMeter:
@@ -247,3 +270,26 @@ def accuracy(output, target, topk=(1,)):
         correct_k = correct[:k].view(-1).float().sum(0)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
+
+
+class SegConfusionMeter():
+    def __init__(self, num_classes):
+        self.conf = np.ndarray((num_classes, num_classes), dtype=np.float32)
+        self.normalized = True
+        self.reset()
+        return
+
+    def reset(self):
+        self.conf.fill(0)
+        return
+
+    def add(self, summed_pixel_predictions):
+        self.conf += summed_pixel_predictions
+        return
+
+    def value(self):
+        if self.normalized:
+            conf = self.conf.astype(np.float32)
+            return conf / conf.sum(1).clip(min=1e-12)[:, None]
+        else:
+            return self.conf

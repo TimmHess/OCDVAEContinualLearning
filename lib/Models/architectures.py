@@ -785,13 +785,11 @@ class DCNNNoVAESeg(nn.Module):
         self.prev_model = None
 
         # SI Storage Unit
-        self.si_storage = SI.SI_StorageUnit()
-        self.si_storage_mu = SI.SI_StorageUnit()
-        self.si_storage_std = SI.SI_StorageUnit()
+        self.si_storage_enc = SI.SI_StorageUnit()
+        self.si_storege_btn = SI.SI_StorageUnit()
+        self.si_storage_dec = SI.SI_StorageUnit()
         self.prev_classifier_weights = None # cw in AR1 paper
-        self.prev_classifier_bias = None # currently not in use
         self.temp_classifier_weights = None # tw in AR1 paper
-        self.temp_classifier_bias = None # currently not in use
 
         self.encoder = nn.Sequential(OrderedDict([
             ('encoder_layer1', SingleConvLayer(1, self.num_colors, 64, kernel_size=4, stride=2, padding=1,

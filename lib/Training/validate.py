@@ -3,8 +3,8 @@ import math
 import torch
 import torch.nn.functional as F
 from lib.Utility.metrics import AverageMeter
-from lib.Utility.metrics import ConfusionMeter
-from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy
+from lib.Utility.metrics import ConfusionMeter, SegConfusionMeter
+from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy, get_seg_confusion
 from lib.Utility.visualization import visualize_confusion
 from lib.Utility.visualization import visualize_image_grid
 from lib.Models.architectures import consolidate_classifier
@@ -56,7 +56,10 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
     
     # confusion matrix
     if not args.incremental_instance:
-        confusion = ConfusionMeter(model.module.num_classes, normalized=True)
+        if not args.is_segmentation:
+            confusion = ConfusionMeter(model.module.num_classes, normalized=True)
+        else:
+            confusion = SegConfusionMeter(model.module.num_classes)
     else:
         if args.full_conf_mat:
             confusion = ConfusionMeter(model.module.num_classes, normalized=True)
@@ -274,7 +277,10 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     ious_cc = iou_class_condtitional(pred=class_output.clone(), target=target.clone())
                     prec1 = iou_to_accuracy(ious_cc)
                     top1.update(prec1.item(), inp.size(0))
-                    # no confusion to add because of missing targets?
+                    # confusion
+                    seg_conf = get_seg_confusion(pred=class_output.clone(), target=target.clone())
+                    confusion.add(seg_conf.numpy())
+                    
 
                 # measure elapsed time
                 batch_time.update(time.time() - end)

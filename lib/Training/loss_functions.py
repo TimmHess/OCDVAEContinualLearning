@@ -282,7 +282,16 @@ def unified_loss_function_no_vae(output_samples_classification, target, output_s
     # for autoregressive models the decoder loss term corresponds to a classification based on 256 classes (for each
     # pixel value), i.e. a 256-way Softmax and thus a cross-entropy loss.
     # For regular decoders the loss is the reconstruction negative-log likelihood.
-    class_loss = nn.CrossEntropyLoss(reduction='sum')
+    if not args.is_segmentation:
+        class_loss = nn.CrossEntropyLoss(reduction='sum')
+    else:
+        weight = torch.ones(output_samples_classification.size(2))
+        #print(output_samples_classification.shape)
+        #print(weight.shape)
+        weight[0] = 0.05
+        #print(weight)
+        weight = weight.float().to(device)
+        class_loss = nn.CrossEntropyLoss(reduction='sum', weight=weight)
 
     # Place-holders for the final loss values over all latent space samples
     cl_losses = torch.zeros(output_samples_classification.size(0)).to(device)

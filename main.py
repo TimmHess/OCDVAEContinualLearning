@@ -280,9 +280,14 @@ def main():
 
     # SI: Register all model paramters
     if args.use_si:
-        SI.register_si_params(model.module.encoder, model.module.si_storage)
-        SI.register_si_params(model.module.latent_mu, model.module.si_storage_mu)
-        SI.register_si_params(model.module.latent_std, model.module.si_storage_std)
+        if not args.is_segmentation:
+            SI.register_si_params(model.module.encoder, model.module.si_storage)
+            SI.register_si_params(model.module.latent_mu, model.module.si_storage_mu)
+            SI.register_si_params(model.module.latent_std, model.module.si_storage_std)
+        else:
+            SI.register_si_params(model.module.encoder, model.module.si_storege_enc)
+            SI.register_si_params(model.module.bottleneck, model.module.si_storege_btn)
+            SI.register_si_params(model.module.decoder, model.module.si_storege_dec)
         print("SI: Initial paramters got registered")
 
     # Define optimizer and loss function (criterion)
@@ -310,9 +315,14 @@ def main():
 
     # SI: Prepare storing of running parameter updates for this sequence (reset dicts W and p_old)
     if args.use_si:
-        SI.init_si_params(model.module.encoder, model.module.si_storage)
-        SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
-        SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+        if not args.is_segmentation:
+            SI.init_si_params(model.module.encoder, model.module.si_storage)
+            SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+            SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+        else:
+            SI.init_si_params(model.module.encoder, model.module.si_storege_enc)
+            SI.init_si_params(model.module.bottleneck, model.module.si_storege_btn)
+            SI.init_si_params(model.module.decoder, model.module.si_storege_dec)
         print("SI: Reset running paramters for next task")
     
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
@@ -352,9 +362,14 @@ def main():
                 # perform SI calculations
                 if args.use_si:
                     # SI: Update internal paramters
-                    SI.update_si_integral(model.module.encoder, model.module.si_storage)
-                    SI.update_si_integral(model.module.latent_mu, model.module.si_storage_mu)
-                    SI.update_si_integral(model.module.latent_std, model.module.si_storage_std)
+                    if not args.is_segmentation:
+                        SI.update_si_integral(model.module.encoder, model.module.si_storage)
+                        SI.update_si_integral(model.module.latent_mu, model.module.si_storage_mu)
+                        SI.update_si_integral(model.module.latent_std, model.module.si_storage_std)
+                    else:
+                        SI.update_si_integral(model.module.encoder, model.module.si_storege_enc)
+                        SI.update_si_integral(model.module.bottleneck, model.module.si_storege_btn)
+                        SI.update_si_integral(model.module.decoder, model.module.si_storege_dec)
                     print("SI: Updated Omega")
                     # If there are previous classifier weighs -> consolidate before saving
                     if not model.module.prev_classifier_weights is None:
@@ -408,9 +423,14 @@ def main():
                     #SI.update_registered_si_params(model.module.encoder, model.module.si_storage)
                     #print("SI: Updated registration of SI params for grown model")
                     # SI: Reset running parameters (after growing)
-                    SI.init_si_params(model.module.encoder, model.module.si_storage)
-                    SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
-                    SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+                    if not args.is_segmentation:
+                        SI.init_si_params(model.module.encoder, model.module.si_storage)
+                        SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+                        SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+                    else:
+                        SI.init_si_params(model.module.encoder, model.module.si_storege_enc)
+                        SI.init_si_params(model.module.bottleneck, model.module.si_storege_btn)
+                        SI.init_si_params(model.module.decoder, model.module.si_storege_dec)
                     print("SI: Reset running paramters for next task")
                     # SI: Re-Initialize ALL classifier weights
                     #WeightInitializer.layer_init(model.module.classifier[-1])
