@@ -244,6 +244,7 @@ class MLP(nn.Module):
         ]))
 
         # SI Storage Unit
+        self.si_storage_initialized = False
         self.si_storage = SI.SI_StorageUnit()
         self.si_storage_mu = SI.SI_StorageUnit()
         self.si_storage_std = SI.SI_StorageUnit()
@@ -325,6 +326,7 @@ class MLPNoVAE(nn.Module):
         #]))
 
         # SI Storage Unit
+        self.si_storage_initialized = False
         self.si_storage = SI.SI_StorageUnit()
         self.si_storage_mu = SI.SI_StorageUnit()
         self.si_storage_std = SI.SI_StorageUnit()
@@ -388,6 +390,7 @@ class DCNN(nn.Module):
         self.prev_model = None
 
         # SI Storage Unit
+        self.si_storage_initialized = False
         self.si_storage = SI.SI_StorageUnit()
         self.si_storage_mu = SI.SI_StorageUnit()
         self.si_storage_std = SI.SI_StorageUnit()
@@ -502,6 +505,7 @@ class DCNNNoVAE(nn.Module):
         self.prev_model = None
 
         # SI Storage Unit
+        self.si_storage_initialized = False
         self.si_storage = SI.SI_StorageUnit()
         self.si_storage_mu = SI.SI_StorageUnit()
         self.si_storage_std = SI.SI_StorageUnit()
@@ -785,8 +789,8 @@ class DCNNNoVAESeg(nn.Module):
         self.prev_model = None
 
         # SI Storage Unit
-        self.si_storage_enc = SI.SI_StorageUnit()
-        self.si_storege_btn = SI.SI_StorageUnit()
+        self.si_storage = SI.SI_StorageUnit()
+        self.si_storage_btn = SI.SI_StorageUnit()
         self.si_storage_dec = SI.SI_StorageUnit()
         self.prev_classifier_weights = None # cw in AR1 paper
         self.temp_classifier_weights = None # tw in AR1 paper

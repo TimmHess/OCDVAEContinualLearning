@@ -285,9 +285,9 @@ def main():
             SI.register_si_params(model.module.latent_mu, model.module.si_storage_mu)
             SI.register_si_params(model.module.latent_std, model.module.si_storage_std)
         else:
-            SI.register_si_params(model.module.encoder, model.module.si_storege_enc)
-            SI.register_si_params(model.module.bottleneck, model.module.si_storege_btn)
-            SI.register_si_params(model.module.decoder, model.module.si_storege_dec)
+            SI.register_si_params(model.module.encoder, model.module.si_storage)
+            SI.register_si_params(model.module.bottleneck, model.module.si_storage_btn)
+            SI.register_si_params(model.module.decoder, model.module.si_storage_dec)
         print("SI: Initial paramters got registered")
 
     # Define optimizer and loss function (criterion)
@@ -320,9 +320,9 @@ def main():
             SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
             SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
         else:
-            SI.init_si_params(model.module.encoder, model.module.si_storege_enc)
-            SI.init_si_params(model.module.bottleneck, model.module.si_storege_btn)
-            SI.init_si_params(model.module.decoder, model.module.si_storege_dec)
+            SI.init_si_params(model.module.encoder, model.module.si_storage)
+            SI.init_si_params(model.module.bottleneck, model.module.si_storage_btn)
+            SI.init_si_params(model.module.decoder, model.module.si_storage_dec)
         print("SI: Reset running paramters for next task")
     
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
@@ -367,9 +367,9 @@ def main():
                         SI.update_si_integral(model.module.latent_mu, model.module.si_storage_mu)
                         SI.update_si_integral(model.module.latent_std, model.module.si_storage_std)
                     else:
-                        SI.update_si_integral(model.module.encoder, model.module.si_storege_enc)
-                        SI.update_si_integral(model.module.bottleneck, model.module.si_storege_btn)
-                        SI.update_si_integral(model.module.decoder, model.module.si_storege_dec)
+                        SI.update_si_integral(model.module.encoder, model.module.si_storage)
+                        SI.update_si_integral(model.module.bottleneck, model.module.si_storage_btn)
+                        SI.update_si_integral(model.module.decoder, model.module.si_storage_dec)
                     print("SI: Updated Omega")
                     # If there are previous classifier weighs -> consolidate before saving
                     if not model.module.prev_classifier_weights is None:
@@ -428,9 +428,9 @@ def main():
                         SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
                         SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
                     else:
-                        SI.init_si_params(model.module.encoder, model.module.si_storege_enc)
-                        SI.init_si_params(model.module.bottleneck, model.module.si_storege_btn)
-                        SI.init_si_params(model.module.decoder, model.module.si_storege_dec)
+                        SI.init_si_params(model.module.encoder, model.module.si_storage)
+                        SI.init_si_params(model.module.bottleneck, model.module.si_storage_btn)
+                        SI.init_si_params(model.module.decoder, model.module.si_storage_dec)
                     print("SI: Reset running paramters for next task")
                     # SI: Re-Initialize ALL classifier weights
                     #WeightInitializer.layer_init(model.module.classifier[-1])

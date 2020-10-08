@@ -297,10 +297,11 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                         + SI.surrogate_loss(model.module.latent_std, model.module.si_storage_std))
                 else:
                     loss_si = args.lmda * (
-                        SI.surrogate_loss(model.module.encoder, model.module.si_storege_enc)
-                        + SI.surrogate_loss(model.module.bottleneck, model.module.si_storege_btn)
-                        + SI.surrogate_loss(model.module.decoder, model.module.si_storege_dec)
+                        SI.surrogate_loss(model.module.encoder, model.module.si_storage)
+                        + SI.surrogate_loss(model.module.bottleneck, model.module.si_storage_btn)
+                        + SI.surrogate_loss(model.module.decoder, model.module.si_storage_dec)
                     )
+                    #print("SI_Loss:", loss_si)
 
                 loss += loss_si
                 si_losses.update(loss_si.item(), inp.size(0))
@@ -347,9 +348,9 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                     SI.update_si_parameters(model.module.latent_mu, model.module.si_storage_mu)
                     SI.update_si_parameters(model.module.latent_std, model.module.si_storage_std)
                 else:
-                    SI.update_si_parameters(model.module.encoder, model.module.si_storege_enc)
-                    SI.update_si_parameters(model.module.bottleneck, model.module.si_storege_btn)
-                    SI.update_si_parameters(model.module.decoder, model.module.si_storege_dec)
+                    SI.update_si_parameters(model.module.encoder, model.module.si_storage)
+                    SI.update_si_parameters(model.module.bottleneck, model.module.si_storage_btn)
+                    SI.update_si_parameters(model.module.decoder, model.module.si_storage_dec)
                 #print("SI: Updated running parameters")
 
             # measure elapsed time
@@ -371,7 +372,7 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                         epoch, i, len(Dataset.train_loader), batch_time=batch_time,
                         data_time=data_time, loss=losses, cl_loss=class_losses, top1=top1,
                         recon_loss=recon_losses, KLD_loss=kld_losses, lwf_loss=cl_lwf.item()))
-                if args.use_si and model.module.si_storage.is_initialized:
+                elif args.use_si and model.module.si_storage.is_initialized:
                     print('Training: [{0}][{1}/{2}]\t' 
                         'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                         'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
@@ -383,8 +384,7 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                         'KL {KLD_loss.val:.4f} ({KLD_loss.avg:.4f})'.format(
                         epoch, i, len(Dataset.train_loader), batch_time=batch_time,
                         data_time=data_time, loss=losses, cl_loss=class_losses, top1=top1,
-                        recon_loss=recon_losses, KLD_loss=kld_losses, si_loss=loss_si.item()))
-                
+                        recon_loss=recon_losses, KLD_loss=kld_losses, si_loss=loss_si.item())) 
                 else:
                     print('Training: [{0}][{1}/{2}]\t' 
                         'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
