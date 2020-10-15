@@ -104,7 +104,7 @@ def loss_fn_kd_multihead(scores, target_scores, task_sizes, T=2.):
     return KD_losses
 
 
-def loss_fn_kd_2d(scores, target_scores, T=2.):
+def loss_fn_kd_2d(scores, target_scores, T=2., weight=None):
     """Compute knowledge-distillation (KD) loss given [scores] and [target_scores].
     Both [scores] and [target_scores] should be tensors, although [target_scores] should be repackaged.
     'Hyperparameter': temperature"""
@@ -127,10 +127,20 @@ def loss_fn_kd_2d(scores, target_scores, T=2.):
         targets_norm = torch.cat([targets_norm.detach(), zeros_to_add], dim=1)
 
     # Calculate distillation loss (see e.g., Li and Hoiem, 2017)
+    #print("targets_norm", targets_norm.shape)
+    #weight = torch.ones(scores.size(1), scores.size(2), scores.size(3))
+    #weight[0,:,:] = 0.05
+    #weight = weight.float().to(device)
+    #print("weight", weight.shape)
+
     KD_loss_unnorm = -(targets_norm * log_scores_norm)
-    #print(KD_loss_unnorm.shape)
+    
+    if not weight is None:
+        KD_loss_unnorm = KD_loss_unnorm * (weight[:target_scores.size(1)].view(-1, 1, 1))
+
+    #print("kd_1", KD_loss_unnorm.shape)
     KD_loss_unnorm = KD_loss_unnorm.sum(dim=1)                      #--> sum over classes
-    #print(KD_loss_unnorm.shape)
+    #print("kd_2", KD_loss_unnorm.shape)
     KD_loss_unnorm = KD_loss_unnorm.mean()                          #--> average over batch
 
     # normalize
@@ -138,7 +148,7 @@ def loss_fn_kd_2d(scores, target_scores, T=2.):
     return KD_loss
 
 
-def unified_loss_function(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args):
+def unified_loss_function(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args, weight=None):
     """
     Computes the unified model's joint loss function consisting of a term for reconstruction, a KL term between
     approximate posterior and prior and the loss for the generative classifier. The number of variational samples
@@ -169,7 +179,11 @@ def unified_loss_function(output_samples_classification, target, output_samples_
     else:
         recon_loss = nn.BCEWithLogitsLoss(reduction='sum')
 
-    class_loss = nn.CrossEntropyLoss(reduction='sum')
+    if not weight is None:
+        weight = torch.FloatTensor(weight[:output_samples_classification.size(2)]).to(device)
+        class_loss = nn.CrossEntropyLoss(reduction='sum', weight=weight)
+    else:
+        class_loss = nn.CrossEntropyLoss(reduction='sum')
 
     # Place-holders for the final loss values over all latent space samples
     recon_losses = torch.zeros(output_samples_recon.size(0)).to(device)
@@ -256,7 +270,7 @@ def unified_loss_function_multihead(output_samples_classification, target, outpu
 
 
 
-def unified_loss_function_no_vae(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args):
+def unified_loss_function_no_vae(output_samples_classification, target, output_samples_recon, inp, mu, std, device, args, weight=None):
     """
     Computes the unified model's joint loss function consisting of a term for reconstruction, a KL term between
     approximate posterior and prior and the loss for the generative classifier. The number of variational samples
@@ -282,16 +296,20 @@ def unified_loss_function_no_vae(output_samples_classification, target, output_s
     # for autoregressive models the decoder loss term corresponds to a classification based on 256 classes (for each
     # pixel value), i.e. a 256-way Softmax and thus a cross-entropy loss.
     # For regular decoders the loss is the reconstruction negative-log likelihood.
-    if not args.is_segmentation:
+    if weight is None:
         class_loss = nn.CrossEntropyLoss(reduction='sum')
     else:
-        weight = torch.ones(output_samples_classification.size(2))
-        #print(output_samples_classification.shape)
-        #print(weight.shape)
-        weight[0] = 0.05
-        #print(weight)
-        weight = weight.float().to(device)
+        #weight = torch.ones(output_samples_classification.size(2))
+        #weight[0] = 0.02
+        #weight[1] = 0.0046
+        #weight[2] = 0.029
+        #weight[3] = 0.005
+        #weight[4] = 0.067
+        #weight[5] = 1
+        weight = torch.FloatTensor(weight[:output_samples_classification.size(2)]).to(device)
+        #print("weight", weight)
         class_loss = nn.CrossEntropyLoss(reduction='sum', weight=weight)
+        #class_loss = nn.CrossEntropyLoss(reduction='sum')
 
     # Place-holders for the final loss values over all latent space samples
     cl_losses = torch.zeros(output_samples_classification.size(0)).to(device)

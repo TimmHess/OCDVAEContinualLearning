@@ -2,6 +2,7 @@ import time
 import torch
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy
+from lib.Utility.metrics import to_one_hot
 from lib.Training.loss_functions import loss_fn_kd, loss_fn_kd_multihead, loss_fn_kd_2d
 from lib.Utility.visualization import visualize_image_grid
 import lib.Models.si as SI
@@ -111,8 +112,13 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                         class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,head_start:head_end], class_target, 
                                                                     recon_samples, recon_target, mu, std, device, args)
                 else:
-                    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
-                                                                recon_samples, recon_target, mu, std, device, args)
+                    if not args.is_segmentation:
+                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
+                                                                    recon_samples, recon_target, mu, std, device, args)
+                    else:
+                        class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
+                                                                    recon_samples, recon_target, mu, std, device, args, 
+                                                                    weight=Dataset.class_pixel_weight)
 
                 # add the individual loss components together and weight the KL term.
                 if args.no_vae:
@@ -214,7 +220,13 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
             if epoch % args.epochs == 0 and i == 0:
                 visualize_image_grid(inp, writer, epoch + 1, 'train_inp_snapshot', save_path)
 
-            recon_target = inp
+            if not args.is_segmentation:
+                recon_target = inp
+            else:
+                # Split target to one hot encoding
+                target_one_hot = to_one_hot(target.clone(), model.module.num_classes)
+                # concat input and one_hot_target
+                recon_target = torch.cat([inp, target_one_hot], dim=1)
             class_target = target
 
             # this needs to be below the line where the reconstruction target is set
@@ -228,8 +240,6 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
 
             # compute model forward
             class_samples, recon_samples, mu, std = model(inp)
-            #print(class_samples.shape)
-            #print(target.shape)
             
             # if we have an autoregressive model variant, further calculate the corresponding layers.
             if args.autoregression:
@@ -242,7 +252,6 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                 # set the target to work with the 256-way Softmax
                 recon_target = (recon_target * 255).long()
 
-        
             if args.is_multiheaded:
                 if not args.incremental_instance:
                     class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-args.num_increment_tasks:], class_target, 
@@ -251,9 +260,14 @@ def train(Dataset, model, criterion, epoch, iteration, optimizer, writer, device
                     class_loss, recon_loss, kld_loss = criterion(class_samples[:,:,-Dataset.num_classes:], class_target, 
                                                                 recon_samples, recon_target, mu, std, device, args)
             else:
-                class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
-                                                            recon_samples, recon_target, mu, std, device, args)
-
+                if not args.is_segmentation:
+                    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
+                                                                recon_samples, recon_target, mu, std, device, args)
+                else:
+                    class_loss, recon_loss, kld_loss = criterion(class_samples, class_target, 
+                                                                recon_samples, recon_target, mu, std, device, args,
+                                                                weight=Dataset.class_pixel_weight)
+            
             # add the individual loss components together and weight the KL term.
             if args.no_vae:
                 loss = class_loss

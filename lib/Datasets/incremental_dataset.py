@@ -8,6 +8,7 @@ import lib.OpenSet.meta_recognition as mr
 from lib.Training.evaluate import sample_per_class_zs
 import lib.Datasets.datasets as all_datasets
 from lib.Training.evaluate import eval_dataset
+from lib.Utility.metrics import from_tensor
 
 import copy
 import numpy as np
@@ -2058,6 +2059,8 @@ def get_incremental_dataset(parent_class, args):
             self.num_sequences = self.trainset.num_sequences
             print(self.class_to_idx)
 
+            self.class_pixel_counts = []
+
             self.vis_size = 16
 
             self.trainsets, self.valsets = {}, {}
@@ -2066,8 +2069,14 @@ def get_incremental_dataset(parent_class, args):
 
             # Split the parent dataset class into into datasets per class
             self.__get_incremental_datasets()
-            #for key in self.trainsets:
-            #    print(key, len(self.trainsets[key]))
+            
+            # Get class weights for current targets
+            self.class_pixel_counts = np.asarray(self.class_pixel_counts)
+            #self.class_pixel_weight = sum(self.class_pixel_counts[:args.num_base_tasks+1])
+            #self.class_pixel_weight = self.class_pixel_weight.sum() / self.class_pixel_weight
+            #self.class_pixel_weight[self.class_pixel_weight == np.inf] = 0
+            #self.class_pixel_weight = self.class_pixel_weight / self.class_pixel_weight.max()
+            self.class_pixel_weight = self.__get_class_pixel_weights(self.class_pixel_counts, args.num_base_tasks+1)
 
             # Get the corresponding class datasets for the initial datasets as specified by number and order
             self.trainset, self.valset = self.__get_initial_dataset()
@@ -2087,24 +2096,37 @@ def get_incremental_dataset(parent_class, args):
             # once for train and once for valset
             for j in range(2):
                 print("Loading: " + str(j))
-                for sequence_index in range(datasets[j].num_sequences):
+                for sequence_index in trange(datasets[j].num_sequences):
                     if(not sequence_index in self.task_order): # skip tasks not in task order (a change of task order is not possible)
                         print("skipping task")
                         continue
                     tensor_list = []
                     target_list = []
+
+                    curr_pixel_counts = np.zeros(self.num_classes)
+
                     datasets[j].set_sequence_index(sequence_index)
                     for i, (inp, target) in tqdm(enumerate(datasets[j])):
-                        if(i >= 100): # DEBUG
+                        if(i >= 1000): # DEBUG
                             break
                         tensor_list.append(inp)
                         target_list.append(target)
+
+                        # add counted pixels
+                        if j == 0:
+                            value, count = np.unique(target, return_counts=True)
+                            for i_v in range(len(value)):
+                                curr_pixel_counts[value[i_v]] += count[i_v]
 
                     # convert list to tensor
                     tensor_list = torch.stack(tensor_list, dim=0)
                     target_list = torch.LongTensor(target_list)
 
-                    if(j==0):
+                    # append pixel counts
+                    if j == 0:
+                        self.class_pixel_counts.append(curr_pixel_counts)
+
+                    if j==0:
                         self.trainsets[sequence_index] = torch.utils.data.TensorDataset(tensor_list, target_list)
                     else:
                         self.valsets[sequence_index] = torch.utils.data.TensorDataset(tensor_list, target_list)
@@ -2129,6 +2151,22 @@ def get_incremental_dataset(parent_class, args):
                 self.trainsets.pop(i)
                 self.valsets.pop(i)
             return trainset, valset
+
+        def __get_class_pixel_weights(self, class_pixel_counts, num_tasks):
+            print("num tasks:", num_tasks)
+            class_pixel_weight = sum(class_pixel_counts[:num_tasks])
+            print("summed counts:")
+            print(class_pixel_weight)
+            print("total sum", class_pixel_weight.sum())
+            #class_pixel_weight = class_pixel_weight.sum() / class_pixel_weight
+            class_pixel_weight = class_pixel_weight.sum() / class_pixel_weight
+            class_pixel_weight[class_pixel_weight == np.inf] = 0
+            print(class_pixel_weight)
+            print("max:", class_pixel_weight.max())
+            class_pixel_weight = class_pixel_weight / class_pixel_weight.max()
+            #class_pixel_weight = class_pixel_weight / class_pixel_weight.sum()
+            print("Class_pixel_weights", class_pixel_weight)
+            return class_pixel_weight
 
         def get_dataset_loader(self, batch_size, workers, is_gpu):
             train_loader = torch.utils.data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True,
@@ -2188,6 +2226,10 @@ def get_incremental_dataset(parent_class, args):
             # update/overwrite the train and val loaders
             self.train_loader, self.val_loader = self.get_dataset_loader(batch_size, workers, is_gpu)
 
+            # update class pixel weights
+            self.class_pixel_weight = self.__get_class_pixel_weights(self.class_pixel_counts, len(self.seen_tasks))
+            return
+
         def generate_seen_tasks(self, model, batch_size, seen_dataset_size, writer, save_path,
                                 openset=False, openset_threshold=0.05, openset_tailsize=0.05, autoregression=False):
             """
@@ -2224,6 +2266,7 @@ def get_incremental_dataset(parent_class, args):
             # i.e. the OCDVAE, if not we continue with conventional generative replay where every sample is a simple
             # draw from the Unit Gaussian prior, i.e. a CDVAE.
             if openset:
+                raise NotImplementedError
                 # Start with fitting the Weibull functions based on the available train data and the classes seen
                 # so far. Note that if generative replay has been called before after the first task increment,
                 # this means that previous train data consists of already generated data.
@@ -2367,6 +2410,7 @@ def get_incremental_dataset(parent_class, args):
             # prior) or isn't desired, conventional generative replay is conducted.
             if not openset or not openset_success:
                 print("Using generative model to replay old data")
+                print("num replays:", int(seen_dataset_size / batch_size))
                 for i in trange(int(seen_dataset_size / batch_size)):
                     # sample from the prior
                     z_samples = torch.randn(batch_size, model.module.latent_dim).to(self.device)
@@ -2378,27 +2422,36 @@ def get_incremental_dataset(parent_class, args):
                         gen = model.module.pixelcnn.generate(gen)
 
                     # classify the samples from the prior and set the label correspondingly.
-                    cl = model.module.classifier(z_samples)
-                    cl = torch.nn.functional.softmax(cl, dim=1)
-                    label = torch.argmax(cl, dim=1)
-                    data.append(gen.data.cpu())
-                    targets.append(label.data.cpu())
+                    #cl = model.module.classifier(z_samples)
+                    #cl = torch.nn.functional.softmax(cl, dim=1)
+                    #label = torch.argmax(cl, dim=1)
+                    #data.append(gen.data.cpu())
+                    #targets.append(label.data.cpu())
+                    # color
+                    gen_images = gen[:,:3,:,:]
+                    data.append(gen_images.data.cpu())
+                    # seg
+                    gen_targets = gen[:,3:,:,:]
+                    gen_targets = from_tensor(gen_targets)
+                    #print("targets_norm", target_norm.size())
+                    #print("zeros_add", zeros_to_add.size())
+                    targets.append(gen_targets.data.cpu())
 
                 # need to detach from graph as otherwise the "require grad" will crash auto differentiation
                 data = torch.cat(data, dim=0)
                 targets = torch.cat(targets, dim=0)
 
                 # get a subset for visualization
-                _, sd_idx = torch.sort(targets)
-                subset_idx = sd_idx[torch.floor(torch.arange(0, data.size(0), data.size(0) / self.vis_size)).long()]
-                viz_subset = data[subset_idx]
+                #_, sd_idx = torch.sort(targets)
+                #subset_idx = sd_idx[torch.floor(torch.arange(0, data.size(0), data.size(0) / self.vis_size)).long()]
+                #viz_subset = data[subset_idx]
 
-                imgs = torchvision.utils.make_grid(viz_subset, nrow=int(math.sqrt(self.vis_size)), padding=5)
-                torchvision.utils.save_image(viz_subset, os.path.join(save_path, 'samples_seen_tasks_' +
-                                                                      str(len(self.seen_tasks) -
-                                                                          self.num_increment_tasks) + '.png'),
-                                             nrow=int(math.sqrt(self.vis_size)), padding=5)
-                writer.add_image('dataset_generation_snapshot', imgs, len(self.seen_tasks) - self.num_increment_tasks)
+                #imgs = torchvision.utils.make_grid(viz_subset, nrow=int(math.sqrt(self.vis_size)), padding=5)
+                #torchvision.utils.save_image(viz_subset, os.path.join(save_path, 'samples_seen_tasks_' +
+                #                                                      str(len(self.seen_tasks) -
+                #                                                          self.num_increment_tasks) + '.png'),
+                #                             nrow=int(math.sqrt(self.vis_size)), padding=5)
+                #writer.add_image('dataset_generation_snapshot', viz_subset, len(self.seen_tasks) - self.num_increment_tasks)
 
             # return generated trainset
             trainset = torch.utils.data.TensorDataset(data, targets)

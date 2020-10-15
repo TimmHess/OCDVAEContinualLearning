@@ -262,7 +262,8 @@ class SegmentationSequence(data.Dataset):
     def __get_class_to_idx(self, label_dict):
         class_to_idx = {}
         for key in label_dict:
-            class_to_idx[key] = label_dict[key]
+            if not label_dict[key] in class_to_idx.values(): # hack to remove doubles
+                class_to_idx[key] = label_dict[key]
         return class_to_idx
 
     def __get_num_classes(self, label_dict):

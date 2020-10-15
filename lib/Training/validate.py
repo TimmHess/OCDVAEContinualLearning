@@ -5,9 +5,12 @@ import torch.nn.functional as F
 from lib.Utility.metrics import AverageMeter
 from lib.Utility.metrics import ConfusionMeter, SegConfusionMeter
 from lib.Utility.metrics import accuracy, iou_class_condtitional, iou_to_accuracy, get_seg_confusion
+from lib.Utility.metrics import to_one_hot, from_tensor
 from lib.Utility.visualization import visualize_confusion
 from lib.Utility.visualization import visualize_image_grid
+from lib.Utility.segmentation_remap import ColorMapper
 from lib.Models.architectures import consolidate_classifier
+
 
 
 def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_path, args):
@@ -227,17 +230,27 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                             epoch+1, i, len(Dataset.val_loader), batch_time=batch_time, loss=losses, cl_loss=class_losses,
                             top1=top1, recon_loss=recon_losses_nat, KLD_loss=kld_losses))
 
-
         else:
+            # Load color mapper
+            if args.is_segmentation and epoch % args.visualization_epoch == 0:
+                color_mapper = ColorMapper(path_to_colormap_file=args.path_to_colormap_file, 
+                                        path_to_classmap_file=args.train_path_to_classmap_file)
             for i, (inp, target) in enumerate(Dataset.val_loader):
                 inp = inp.to(device)
                 target = target.to(device)
 
-                recon_target = inp
+                if not args.is_segmentation:
+                    recon_target = inp
+                else:
+                    # Split target to one hot encoding
+                    target_one_hot = to_one_hot(target.clone(), model.module.num_classes)
+                    # concat input and one_hot_target
+                    recon_target = torch.cat([inp, target_one_hot], dim=1)
                 class_target = target
 
                 # visualize inp
                 if epoch % args.epochs == 0 and i == 0:
+                    print("inp", inp.shape)
                     visualize_image_grid(inp, writer, epoch + 1, 'val_inp_snapshot', save_path)
 
                 # compute output
@@ -265,6 +278,22 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                 # take mean to compute accuracy
                 # (does nothing if there isn't more than 1 sample per input other than removing dummy dimension)
                 class_output = torch.mean(class_samples, dim=0)
+
+                # visualize class samples for segmentation
+                if args.is_segmentation and i == (len(Dataset.val_loader) - 2) and epoch % args.visualization_epoch == 0:
+                    # color
+                    visualize_image_grid(inp, writer, epoch + 1, 'val_seg_inp_snapshot', save_path)
+                    # seg
+                    #print("Saving visualization of class segmentation")
+                    #print("segmentation_out", class_output.shape)
+                    segmentation_out = from_tensor(class_output.clone())
+                    segmentation_out.unsqueeze_(1)
+                    #import numpy as np
+                    #print("segmentation_out", segmentation_out.shape, np.unique(segmentation_out.cpu().numpy()))
+                    segmentation_out = color_mapper.segmentation_to_color(segmentation_out.cpu()) / 255.0 # needs to be range 0-1 for pytorch image grid
+                    #print("segmentation_out", segmentation_out.shape, np.unique(segmentation_out.cpu().numpy()))
+                    visualize_image_grid(segmentation_out, writer, epoch + 1, 'val_seg_snapshot', save_path)                    
+
                 if not args.no_vae:
                     recon_output = torch.mean(recon_samples, dim=0)
 
@@ -307,9 +336,17 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                         recon_loss = F.binary_cross_entropy(recon, recon_target)
                     else:
                         # If not autoregressive simply apply the Sigmoid and visualize
-                        recon = torch.sigmoid(recon_output)
                         if (i == (len(Dataset.val_loader) - 2)) and (epoch % args.visualization_epoch == 0):
+                            # Color
+                            recon = torch.sigmoid(recon_output[:,:3,:,:])
                             visualize_image_grid(recon, writer, epoch + 1, 'reconstruction_snapshot', save_path)
+                            # Also store reconstructed segmentation
+                            if args.is_segmentation:
+                                recon_seg = torch.sigmoid(recon_output[:,3:,:,:])
+                                recon_seg = from_tensor(recon_seg)
+                                recon_seg.unsqueeze_(1)
+                                recon_seg = color_mapper.segmentation_to_color(recon_seg) / 255.0
+                                visualize_image_grid(recon_seg, writer, epoch + 1, 'reconstruction_seg_snapshot', save_path)
 
                 # update the respective loss values. To be consistent with values reported in the literature we scale
                 # our normalized losses back to un-normalized values.
@@ -342,7 +379,7 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                                                         recon_target.size(3))
 
                         # If the input belongs to one of the base classes also update base metrics
-                        if not args.no_vae:
+                        if not args.no_vae and not args.is_segmentation:
                             if class_target[j].item() in base_classes:
                                 if args.autoregression:
                                     recon_losses_base_bits_per_dim.update(F.cross_entropy(rec, (rec_tar * 255).long()) *
@@ -361,11 +398,20 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                 if not args.no_vae:
                     if i == (len(Dataset.val_loader) - 2) and epoch % args.visualization_epoch == 0:
                         # generation
-                        gen = model.module.generate()
-
+                        gen = model.module.generate()    
+                        gen_color = gen[:,:3,:,:]
+                        # color
                         if args.autoregression:
                             gen = model.module.pixelcnn.generate(gen)
-                        visualize_image_grid(gen, writer, epoch + 1, 'generation_snapshot', save_path)
+                        visualize_image_grid(gen_color, writer, epoch + 1, 'generation_snapshot', save_path)
+                        # segmentation
+                        if args.is_segmentation:
+                            gen_seg = gen[:,3:,:,:].clone()
+                            gen_seg = from_tensor(gen_seg)
+                            gen_seg.unsqueeze_(1)
+                            gen_seg = color_mapper.segmentation_to_color(gen_seg) / 255.0
+                            visualize_image_grid(gen_seg, writer, epoch + 1, 'generation_seg_snapshot', save_path)
+                            
 
                 # Print progress
                 if i % args.print_freq == 0:
@@ -417,9 +463,14 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
             else:
                 # this has to be + 1 because the number of initial tasks is always one less than the amount of classes
                 # i.e. 1 task is 2 classes etc.
-                for c in range(args.num_base_tasks + 1):
-                    prec1_base += confusion.value()[c][c]
-                prec1_base = prec1_base / (args.num_base_tasks + 1)
+                if not args.is_segmentation:
+                    for c in range(args.num_base_tasks + 1):
+                        prec1_base += confusion.value()[c][c]
+                    prec1_base = prec1_base / (args.num_base_tasks + 1)
+                else:
+                    for c in range(args.num_initial_classes):
+                        prec1_base += confusion.value()[c][c]
+                    prec1_base = prec1_base / (args.num_initial_classes)
 
             # For the first task "new" metrics are equivalent to "base"
             if (epoch + 1) / args.epochs == 1:

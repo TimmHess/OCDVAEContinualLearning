@@ -43,6 +43,7 @@ parser.add_argument('--train_path_to_classmap_file', type=str, default=None)
 parser.add_argument('--val_path_to_sequence_file', type=str, default=None)
 parser.add_argument('--val_path_to_segmentation_file', type=str, default=None)
 parser.add_argument('--val_path_to_classmap_file', type=str, default=None)
+parser.add_argument('--path_to_colormap_file', type=str, default=None)
 
 
 # Tensorboard Logs

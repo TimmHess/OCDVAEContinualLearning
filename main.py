@@ -415,7 +415,12 @@ def main():
                     else:
                         # TODO: num increment tasks may be not the best way to increment -> cannot add multiple new classes in one increment
                         model.module.num_classes += args.num_increment_tasks
+                        model.module.out_channels += args.num_increment_tasks
                         grow_classifier_seg(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                        if args.generative_replay:
+                            print("Growing reconstructor...")
+                            grow_classifier_seg(device, model.module.reconstructor, args.num_increment_tasks, WeightInitializer)
+                            print("done...")
                     print("Classifier grown..")
                     
                 # Register new paramters to SI
