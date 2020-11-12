@@ -1,6 +1,7 @@
 import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
+import lib.Utility.transforms as custom_transforms
 
 import csv
 import json
@@ -12,7 +13,6 @@ from pathlib import Path
 import numpy as np
 import cv2
 from PIL import Image
-
 
 
 class ClassificationSequence(data.Dataset):
@@ -40,7 +40,8 @@ class ClassificationSequence(data.Dataset):
         # Transforms
         self.transforms = transforms.Compose([
             transforms.Resize(size=(self.patch_size, self.patch_size)),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            custom_transforms.IlluminationInvariant()
         ])
 
         return

@@ -20,6 +20,9 @@ parser.add_argument('--gray-scale', default=False, action='store_true',
                          'to three channels.')
 parser.add_argument('-noise', '--denoising-noise-value', default=0.25, type=float,
                     help='noise value for denoising. (float in range [0, 1]. Default: 0.25)')
+parser.add_argument('--illumination-pre-processing', action='store_true', default=False,
+                    help='use a preprocessing that excludes illumination pertubations from dataset')
+
 # Image-Patches
 parser.add_argument('--train_path_to_root', type=str, default=None, 
                     help='Path to root of training set when using incremental sequence')
