@@ -41,7 +41,8 @@ class ClassificationSequence(data.Dataset):
         self.transforms = transforms.Compose([
             transforms.Resize(size=(self.patch_size, self.patch_size)),
             transforms.ToTensor(),
-            custom_transforms.IlluminationInvariant()
+            #custom_transforms.IlluminationInvariant()
+            #custom_transforms.LBP(device="cpu", radius=3, points=24)
         ])
 
         return

@@ -1144,7 +1144,9 @@ class WRNSeg(nn.Module):
         self.bottleneck = SingleLinearLayer(0, self.enc_spatial_dim_x * self.enc_spatial_dim_y * self.enc_channels, 
                                                 self.latent_dim, batch_norm=self.batch_norm, bias=False)
 
-        self.classifier = nn.Sequential(nn.Linear(self.latent_dim, num_classes, bias=False))
+        #self.classifier = nn.Sequential(nn.Linear(self.latent_dim, num_classes, bias=False))
+        self.classifier = nn.Sequential(nn.Conv2d(64, num_classes, kernel_size=3, stride=1,
+                                                padding=1, bias=False))
 
         self.latent_decoder = nn.Linear(self.latent_dim, self.enc_spatial_dim_x * self.enc_spatial_dim_y *
                                         self.enc_channels, bias=False)

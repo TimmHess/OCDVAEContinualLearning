@@ -52,6 +52,8 @@ parser.add_argument('--path_to_colormap_file', type=str, default=None)
 # Tensorboard Logs
 parser.add_argument('--save_path_root', type=str, default="./",
                     help='Path to where the tensorboard logs shall be saved')
+parser.add_argument('--ranged_base_and_new_acc', type=int, default=0,
+                    help='Additional range befor task end, where base and new accuracy are calculated (for smoothing)')
 
 # Architecture and weight-init
 parser.add_argument('-a', '--architecture', default='WRN', help='model architecture (default: WRN)')

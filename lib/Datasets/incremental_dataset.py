@@ -1522,7 +1522,7 @@ def get_incremental_dataset(parent_class, args):
                     tensor_list = []
                     target_list = []
                     datasets[j].set_sequence_index(sequence_index)
-                    for i, (inp, target) in enumerate(datasets[j]):
+                    for i, (inp, target) in tqdm(enumerate(datasets[j])):
                         tensor_list.append(inp)
                         target_list.append(target)
                     

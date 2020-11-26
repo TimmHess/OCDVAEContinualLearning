@@ -1,5 +1,6 @@
 import time
 import math
+import numpy as np
 import torch
 import torch.nn.functional as F
 from lib.Utility.metrics import AverageMeter
@@ -47,12 +48,12 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
     # for continual learning settings also add instances for base and new reconstruction metrics
     # corresponding accuracy values are calculated directly from the confusion matrix below
-    if args.incremental_data and ((epoch + 1) % args.epochs == 0 and epoch > 0):
-        recon_losses_new_nat = AverageMeter()
-        recon_losses_base_nat = AverageMeter()
-        if args.autoregression:
-            recon_losses_new_bits_per_dim = AverageMeter()
-            recon_losses_base_bits_per_dim = AverageMeter()
+    #if args.incremental_data and ((epoch + 1) % args.epochs == 0 and epoch > 0):
+    recon_losses_new_nat = AverageMeter()
+    recon_losses_base_nat = AverageMeter()
+    if args.autoregression:
+        recon_losses_new_bits_per_dim = AverageMeter()
+        recon_losses_base_bits_per_dim = AverageMeter()
 
     batch_time = AverageMeter()
     top1 = AverageMeter()
@@ -445,7 +446,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
     print(' * Validation: Loss {loss.avg:.5f} Prec@1 {top1.avg:.3f}'.format(loss=losses, top1=top1))
 
     # At the end of training isolated, or at the end of every task visualize the confusion matrix
-    if (epoch + 1) % args.epochs == 0 and epoch > 0:
+    #if (epoch + 1) % args.epochs == 0 and epoch > 0:
+    if (epoch + 1) % args.epochs in ([0] + list(np.arange(args.epochs-args.ranged_base_and_new_acc, args.epochs+1))):
         # visualize the confusion matrix
         if args.cross_dataset:
             visualize_confusion(writer, epoch + 1, confusion.value(), Dataset.task_to_idx, save_path)
@@ -682,10 +684,11 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
             # At the continual learning metrics to TensorBoard
             writer.add_scalar('validation/base_precision@1', top1_base.avg, len(model.module.seen_tasks)-1)
             writer.add_scalar('validation/new_precision@1', top1_new.avg, len(model.module.seen_tasks)-1)
-            writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
-                              args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
-            writer.add_scalar('validation/new_rec_loss_nats', recon_losses_new_nat.avg * args.patch_size *
-                              args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+            if not args.no_vae:
+                writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
+                                args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+                writer.add_scalar('validation/new_rec_loss_nats', recon_losses_new_nat.avg * args.patch_size *
+                                args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
 
             if args.autoregression:
                 writer.add_scalar('validation/base_rec_loss_bits_per_dim',
