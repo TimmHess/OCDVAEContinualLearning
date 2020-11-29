@@ -82,7 +82,7 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
     # evaluate the entire validation dataset
     with torch.no_grad():
-        
+
         if args.is_multiheaded: #and not args.incremental_instance:
             # created dataset loader for each validation set in mh_valsets(ordered by task/head)
             for valset_index in range(len(Dataset.mh_valsets)):
@@ -361,7 +361,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
                 # if we are learning continually, we need to calculate the base and new reconstruction losses at the end
                 # of each task increment.
-                if args.incremental_data and not args.incremental_instance and ((epoch + 1) % args.epochs == 0 and epoch > 0):
+                doValidate = (epoch + 1) % args.epochs in ([0] + list(np.arange(args.epochs-args.ranged_base_and_new_acc, args.epochs+1)))
+                if args.incremental_data and not args.incremental_instance and doValidate and epoch > 0:
                     for j in range(inp.size(0)):
                         # get the number of classes for cross-dataset or class incremental scenarios.
                         if args.cross_dataset:
@@ -450,9 +451,9 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
     if (epoch + 1) % args.epochs in ([0] + list(np.arange(args.epochs-args.ranged_base_and_new_acc, args.epochs+1))):
         # visualize the confusion matrix
         if args.cross_dataset:
-            visualize_confusion(writer, epoch + 1, confusion.value(), Dataset.task_to_idx, save_path)
+            visualize_confusion(writer, epoch, confusion.value(), Dataset.task_to_idx, save_path)
         else:
-            visualize_confusion(writer, epoch + 1, confusion.value(), Dataset.class_to_idx, save_path)
+            visualize_confusion(writer, epoch, confusion.value(), Dataset.class_to_idx, save_path)
 
         # If we are in a continual learning scenario (which is not incremental instance), also use the confusion matrix to extract base and new precision.
         if args.incremental_data and not args.incremental_instance:
@@ -475,7 +476,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     prec1_base = prec1_base / (args.num_initial_classes)
 
             # For the first task "new" metrics are equivalent to "base"
-            if (epoch + 1) / args.epochs == 1:
+            #if (epoch + 1) / args.epochs == 1:
+            if (epoch+1) <= args.epochs: 
                 prec1_new = prec1_base
                 recon_losses_new_nat.avg = recon_losses_base_nat.avg
                 if args.autoregression:
@@ -495,12 +497,20 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                     prec1_new = prec1_new / args.num_increment_tasks
 
             # At the continual learning metrics to TensorBoard
-            writer.add_scalar('validation/base_precision@1', prec1_base, len(model.module.seen_tasks)-1)
-            writer.add_scalar('validation/new_precision@1', prec1_new, len(model.module.seen_tasks)-1)
+            #writer.add_scalar('validation/base_precision@1', prec1_base, len(model.module.seen_tasks)-1)
+            #writer.add_scalar('validation/new_precision@1', prec1_new, len(model.module.seen_tasks)-1)
+            #writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
+            #                  args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+            #writer.add_scalar('validation/new_rec_loss_nats', recon_losses_new_nat.avg * args.patch_size *
+            #                  args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+            writer.add_scalar('validation/base_precision@1', prec1_base, epoch)
+            writer.add_scalar('validation/new_precision@1', prec1_new, epoch)
             writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
-                              args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+                              args.patch_size * model.module.num_colors, epoch)
             writer.add_scalar('validation/new_rec_loss_nats', recon_losses_new_nat.avg * args.patch_size *
-                              args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
+                              args.patch_size * model.module.num_colors, epoch)
+
+
 
             if args.autoregression:
                 writer.add_scalar('validation/base_rec_loss_bits_per_dim',
@@ -682,8 +692,10 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                                 recon_losses_new_nat.update(F.binary_cross_entropy(recon[j], recon_target[j]), 1)
         
             # At the continual learning metrics to TensorBoard
-            writer.add_scalar('validation/base_precision@1', top1_base.avg, len(model.module.seen_tasks)-1)
-            writer.add_scalar('validation/new_precision@1', top1_new.avg, len(model.module.seen_tasks)-1)
+            #writer.add_scalar('validation/base_precision@1', top1_base.avg, len(model.module.seen_tasks)-1)
+            #writer.add_scalar('validation/new_precision@1', top1_new.avg, len(model.module.seen_tasks)-1)
+            writer.add_scalar('validation/base_precision@1', top1_base.avg, epoch)
+            writer.add_scalar('validation/new_precision@1', top1_new.avg, epoch)
             if not args.no_vae:
                 writer.add_scalar('validation/base_rec_loss_nats', recon_losses_base_nat.avg * args.patch_size *
                                 args.patch_size * model.module.num_colors, len(model.module.seen_tasks) - 1)
