@@ -609,7 +609,8 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
 
             # New
             print("\n Computing New Task Validation \n")
-            if (epoch + 1) / args.epochs == 1:
+            #if (epoch + 1) / args.epochs == 1:
+            if (epoch+1) <= args.epochs:
                 #prec1_new = prec1_base
                 top1_new = top1_base
                 recon_losses_new_nat.avg = recon_losses_base_nat.avg
