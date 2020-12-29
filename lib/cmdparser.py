@@ -81,6 +81,7 @@ parser.add_argument('-log', '--log-weights', default=False, action='store_true',
 # Resuming training
 parser.add_argument('--resume', default='', type=str, help='path to model to load/resume from(default: none). '
                                                            'Also for stand-alone openset outlier evaluation script')
+parser.add_argument('--no-model-store', action='store_true', default=False)
 
 # Variational parameters
 parser.add_argument('--var-latent-dim', default=60, type=int, help='Dimensionality of latent space')

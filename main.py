@@ -349,8 +349,9 @@ def main():
         if args.incremental_data:
             # at the end of each task increment
             if epoch % args.epochs == 0 and epoch > 0:
-                print('Saving the last checkpoint from the previous task ...')
-                save_task_checkpoint(save_path, epoch // args.epochs)
+                if not args.no_model_store:
+                    print('Saving the last checkpoint from the previous task ...')
+                    save_task_checkpoint(save_path, epoch // args.epochs)
                 
                 # save previous model if lwf
                 if args.use_lwf:
@@ -460,16 +461,17 @@ def main():
         prec, loss = validate(dataset, model, criterion, epoch, iteration, writer, device, save_path, args)
 
         # remember best prec@1 and save checkpoint
-        is_best = loss < best_loss
-        best_loss = min(loss, best_loss)
-        best_prec = max(prec, best_prec)
-        save_checkpoint({'epoch': epoch,
-                         'arch': args.architecture,
-                         'state_dict': model.state_dict(),
-                         'best_prec': best_prec,
-                         'best_loss': best_loss,
-                         'optimizer': optimizer.state_dict()},
-                        is_best, save_path)
+        if not args.no_model_store:
+            is_best = loss < best_loss
+            best_loss = min(loss, best_loss)
+            best_prec = max(prec, best_prec)
+            save_checkpoint({'epoch': epoch,
+                            'arch': args.architecture,
+                            'state_dict': model.state_dict(),
+                            'best_prec': best_prec,
+                            'best_loss': best_loss,
+                            'optimizer': optimizer.state_dict()},
+                            is_best, save_path)
 
         # increment epoch counters
         epoch += 1
