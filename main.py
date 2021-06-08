@@ -20,8 +20,8 @@ import torch.backends.cudnn as cudnn
 import lib.Models.architectures as architectures
 from lib.Models.pixelcnn import PixelCNN
 import lib.Datasets.datasets as datasets
-from lib.Models.initialization import WeightInit
-from lib.Models.architectures import grow_classifier
+from lib.Models.initialization import WeightInit, ZeroWeightInit
+from lib.Models.architectures import grow_classifier, grow_classifier_seg
 from lib.cmdparser import parser
 from lib.Training.train import train
 from lib.Training.validate import validate
@@ -31,7 +31,8 @@ from lib.Training.evaluate import get_mu_and_std
 from lib.Utility.visualization import args_to_tensorboard
 from lib.Utility.visualization import visualize_dataset_in_2d_embedding
 from lib.Models.architectures import set_previous_mu_and_std
-
+import lib.Models.si as SI
+from lib.Models.architectures import consolidate_classifier
 
 # Comment this if CUDNN benchmarking is not desired
 cudnn.benchmark = True
@@ -52,7 +53,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Launch a writer for the tensorboard summary writer instance
-    save_path = 'runs/' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_' + args.dataset + '_' + args.architecture +\
+    save_path = args.save_path_root
+    save_path += 'runs/' + strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + '_' + args.dataset + '_' + args.architecture +\
                 '_variational_samples_' + str(args.var_samples) + '_latent_dim_' + str(args.var_latent_dim)
 
     # add option specific naming to separate tensorboard log files later
@@ -61,12 +63,20 @@ def main():
 
     if args.incremental_data:
         save_path += '_incremental'
+        if args.is_multiheaded:
+            save_path += '_multihead'
         if args.train_incremental_upper_bound:
             save_path += '_upper_bound'
         if args.generative_replay:
             save_path += '_genreplay'
         if args.openset_generative_replay:
             save_path += '_opensetreplay'
+        #if args.use_kl_regularization:
+        #    save_path += '_kl-reg'
+        if args.use_si:
+            save_path += '_si' + '_' + str(args.lmda)
+        if args.use_lwf:
+            save_path += '_lwf' + '_' + str(args.lmda)
     if args.cross_dataset:
         save_path += '_cross_dataset_' + args.dataset_order
 
@@ -82,8 +92,10 @@ def main():
         log.write(arg + ':' + str(getattr(args, arg)) + '\n')
 
     # Initialize criterion
-    if args.use_kl_regularization:
-        from lib.Training.loss_functions import unified_loss_function_kl_regularized as criterion
+    if args.no_vae:
+        from lib.Training.loss_functions import unified_loss_function_no_vae as criterion
+    elif args.is_multiheaded:
+        from lib.Training.loss_functions import unified_loss_function_multihead as criterion
     else:
         from lib.Training.loss_functions import unified_loss_function as criterion
 
@@ -91,6 +103,8 @@ def main():
     # Dataset loading
     data_init_method = getattr(datasets, args.dataset)
     dataset = data_init_method(torch.cuda.is_available(), args)
+    print("dataset:", dataset)
+    
     # get the number of classes from the class dictionary
     num_classes = dataset.num_classes
 
@@ -101,8 +115,8 @@ def main():
 
         # get the method to create the incremental dataste (inherits from the chosen data loader)
         inc_dataset_init_method = get_incremental_dataset(data_init_method, args)
-        print(inc_dataset_init_method)
-
+        print("inc data init method:", inc_dataset_init_method)
+        
         # different options for class incremental vs. cross-dataset experiments
         if args.cross_dataset:
             # if a task order file is specified, load the task order from it
@@ -183,8 +197,11 @@ def main():
                     task_order = np.load(args.load_task_order).tolist()
                 else:
                     # if no file is found a random task order is created
-                    print("=> no task order found. Creating randomized task order")
-                    task_order = np.random.permutation(num_classes).tolist()
+                    #print("=> no task order found. Creating randomized task order")
+                    #task_order = np.random.permutation(num_classes).tolist()
+                    # load task order from cmd
+                    task_order = args.load_task_order.split(",")
+                    task_order = [int(x) for x in task_order]
             else:
                 # if randomize task order is specified create a random task order, else task order is sequential
                 task_order = []
@@ -199,7 +216,10 @@ def main():
             # set the number of classes to base tasks + 1 because base tasks is always one less.
             # E.g. if you have 2 classes it's one task. This is a little inconsistent from the naming point of view
             # but we wanted a single variable to work for both class incremental as well as cross-dataset experiments
-            num_classes = args.num_base_tasks + 1
+            if(not args.is_segmentation):
+                num_classes = args.num_base_tasks + 1
+            else:
+                num_classes = args.num_initial_classes
             # multiply epochs by number of tasks
             epoch_multiplier = ((len(task_order) - (args.num_base_tasks + 1)) / args.num_increment_tasks) + 1
 
@@ -254,6 +274,22 @@ def main():
     WeightInitializer = WeightInit(args.weight_init)
     WeightInitializer.init_model(model)
 
+    # SI: Get ZeroWeightInit instance
+    if args.use_si:
+        ZeroWeightInitializer = ZeroWeightInit()
+
+    # SI: Register all model paramters
+    if args.use_si:
+        if not args.is_segmentation:
+            SI.register_si_params(model.module.encoder, model.module.si_storage)
+            SI.register_si_params(model.module.latent_mu, model.module.si_storage_mu)
+            SI.register_si_params(model.module.latent_std, model.module.si_storage_std)
+        else:
+            SI.register_si_params(model.module.encoder, model.module.si_storage)
+            SI.register_si_params(model.module.bottleneck, model.module.si_storage_btn)
+            SI.register_si_params(model.module.decoder, model.module.si_storage_dec)
+        print("SI: Initial paramters got registered")
+
     # Define optimizer and loss function (criterion)
     optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
 
@@ -277,6 +313,18 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
+    # SI: Prepare storing of running parameter updates for this sequence (reset dicts W and p_old)
+    if args.use_si:
+        if not args.is_segmentation:
+            SI.init_si_params(model.module.encoder, model.module.si_storage)
+            SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+            SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+        else:
+            SI.init_si_params(model.module.encoder, model.module.si_storage)
+            SI.init_si_params(model.module.bottleneck, model.module.si_storage_btn)
+            SI.init_si_params(model.module.decoder, model.module.si_storage_dec)
+        print("SI: Reset running paramters for next task")
+    
     # optimize until final amount of epochs is reached. Final amount of epochs is determined through the
     while epoch < (args.epochs * epoch_multiplier):
         print("")
@@ -301,20 +349,37 @@ def main():
         if args.incremental_data:
             # at the end of each task increment
             if epoch % args.epochs == 0 and epoch > 0:
-                print('Saving the last checkpoint from the previous task ...')
-                save_task_checkpoint(save_path, epoch // args.epochs)
-
-                # track mu and std for regularization
-                if args.use_kl_regularization:
-                    print("Calculating task's mu and std for kl regularization")
-                    prev_mu, prev_std = get_mu_and_std(model, dataset.train_loader, device)
-                    set_previous_mu_and_std(model, prev_mu, prev_std)
+                if not args.no_model_store:
+                    print('Saving the last checkpoint from the previous task ...')
+                    save_task_checkpoint(save_path, epoch // args.epochs)
                 
                 # save previous model if lwf
                 if args.use_lwf:
                     print("Storing previous model")
                     model.module.prev_model = copy.deepcopy(model)
+                    model.module.prev_model.eval()
                     print("Storing complete...")
+
+                # perform SI calculations
+                if args.use_si:
+                    # SI: Update internal paramters
+                    if not args.is_segmentation:
+                        SI.update_si_integral(model.module.encoder, model.module.si_storage)
+                        SI.update_si_integral(model.module.latent_mu, model.module.si_storage_mu)
+                        SI.update_si_integral(model.module.latent_std, model.module.si_storage_std)
+                    else:
+                        SI.update_si_integral(model.module.encoder, model.module.si_storage)
+                        SI.update_si_integral(model.module.bottleneck, model.module.si_storage_btn)
+                        SI.update_si_integral(model.module.decoder, model.module.si_storage_dec)
+                    print("SI: Updated Omega")
+                    # If there are previous classifier weighs -> consolidate before saving
+                    if not model.module.prev_classifier_weights is None:
+                        # consolidate classifier weights -> not needed because weights are still consolidated from validation
+                        #consolidate_classifier(model.module)
+                        pass
+                    # SI: Store (consolidated) classifier weights as prev_classifier_weights
+                    model.module.prev_classifier_weights = model.module.classifier[-1].weight.data.clone()
+                    print("SI: Stored previous classifier weights before classifier has grown")
 
                 print("Incrementing dataset...")
                 dataset.increment_tasks(model, args.batch_size, args.workers, writer, save_path,
@@ -333,14 +398,54 @@ def main():
                                     sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
                                     - model.module.num_classes, WeightInitializer)
                     model.module.num_classes = sum(dataset.num_classes_per_task[:len(dataset.seen_tasks)])
+
                 elif args.incremental_instance:
                     print(len(dataset.train_loader), len(dataset.val_loader))
                     # Do not grow the classifier
                     # TODO: check if new dataset contains more classes and grow accordingly
                     pass
+                    if args.is_multiheaded:
+                        model.module.num_classes += dataset.num_classes
+                        grow_classifier(device, model.module.classifier, dataset.num_classes, WeightInitializer)
+                        print("Incresed classes by " + str(dataset.num_classes) + ", for multi-headed incremental instance")
+
                 else:
-                    model.module.num_classes += args.num_increment_tasks
-                    grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                    if not args.is_segmentation:
+                        model.module.num_classes += args.num_increment_tasks
+                        grow_classifier(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                    else:
+                        # TODO: num increment tasks may be not the best way to increment -> cannot add multiple new classes in one increment
+                        model.module.num_classes += args.num_increment_tasks
+                        model.module.out_channels += args.num_increment_tasks
+                        grow_classifier_seg(device, model.module.classifier, args.num_increment_tasks, WeightInitializer)
+                        if args.generative_replay:
+                            print("Growing reconstructor...")
+                            grow_classifier_seg(device, model.module.reconstructor, args.num_increment_tasks, WeightInitializer)
+                            print("done...")
+                    print("Classifier grown..")
+                    
+                # Register new paramters to SI
+                if args.use_si:
+                    #SI.update_registered_si_params(model.module.encoder, model.module.si_storage)
+                    #print("SI: Updated registration of SI params for grown model")
+                    # SI: Reset running parameters (after growing)
+                    if not args.is_segmentation:
+                        SI.init_si_params(model.module.encoder, model.module.si_storage)
+                        SI.init_si_params(model.module.latent_mu, model.module.si_storage_mu)
+                        SI.init_si_params(model.module.latent_std, model.module.si_storage_std)
+                    else:
+                        SI.init_si_params(model.module.encoder, model.module.si_storage)
+                        SI.init_si_params(model.module.bottleneck, model.module.si_storage_btn)
+                        SI.init_si_params(model.module.decoder, model.module.si_storage_dec)
+                    print("SI: Reset running paramters for next task")
+                    # SI: Re-Initialize ALL classifier weights
+                    #WeightInitializer.layer_init(model.module.classifier[-1])
+                    if not args.is_multiheaded:
+                        ZeroWeightInitializer.layer_init(model.module.classifier[-1])
+                        print("SI: Re-Initialized classification layer")
+                        # SI: Store temp_classifier_weights
+                        model.module.temp_classifier_weights = model.module.classifier[-1].weight.data.clone()
+                        print("SI: Stored classifier weights to temp_classifier_weights")
 
                 # reset moving averages etc. of the optimizer
                 optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
@@ -350,22 +455,23 @@ def main():
                 model.module.seen_tasks = dataset.seen_tasks
 
         # train
-        train(dataset, model, criterion, epoch, iteration, optimizer, writer, device, args)
+        train(dataset, model, criterion, epoch, iteration, optimizer, writer, device, args, save_path)
 
         # evaluate on validation set
         prec, loss = validate(dataset, model, criterion, epoch, iteration, writer, device, save_path, args)
 
         # remember best prec@1 and save checkpoint
-        is_best = loss < best_loss
-        best_loss = min(loss, best_loss)
-        best_prec = max(prec, best_prec)
-        save_checkpoint({'epoch': epoch,
-                         'arch': args.architecture,
-                         'state_dict': model.state_dict(),
-                         'best_prec': best_prec,
-                         'best_loss': best_loss,
-                         'optimizer': optimizer.state_dict()},
-                        is_best, save_path)
+        if not args.no_model_store:
+            is_best = loss < best_loss
+            best_loss = min(loss, best_loss)
+            best_prec = max(prec, best_prec)
+            save_checkpoint({'epoch': epoch,
+                            'arch': args.architecture,
+                            'state_dict': model.state_dict(),
+                            'best_prec': best_prec,
+                            'best_loss': best_loss,
+                            'optimizer': optimizer.state_dict()},
+                            is_best, save_path)
 
         # increment epoch counters
         epoch += 1

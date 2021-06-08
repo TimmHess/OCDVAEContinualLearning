@@ -20,12 +20,40 @@ parser.add_argument('--gray-scale', default=False, action='store_true',
                          'to three channels.')
 parser.add_argument('-noise', '--denoising-noise-value', default=0.25, type=float,
                     help='noise value for denoising. (float in range [0, 1]. Default: 0.25)')
+parser.add_argument('--illumination-pre-processing', action='store_true', default=False,
+                    help='use a preprocessing that excludes illumination pertubations from dataset')
+
+# Image-Patches
 parser.add_argument('--train_path_to_root', type=str, default=None, 
                     help='Path to root of training set when using incremental sequence')
 parser.add_argument('--val_path_to_root', type=str, default=None,
                     help='Path to root of validation set when using incremental sequnece')
 parser.add_argument('--labelmap_file', type=str, default=None,
                     help='Path to labelmap file for incremental sequence')
+
+# Segmentation
+parser.add_argument('--is_segmentation', action='store_true', default=False)
+parser.add_argument('--num_initial_classes', type=int, default=None)
+parser.add_argument('--seg-img-size', nargs='*', type=int, default=None,
+     help='Override of "patch-size" for segmentation application')
+parser.add_argument('--train_path_to_color', type=str, default=None)
+parser.add_argument('--train_path_to_seg', type=str, default=None)
+parser.add_argument('--val_path_to_color', type=str, default=None)
+parser.add_argument('--val_path_to_seg', type=str, default=None)
+parser.add_argument('--train_path_to_sequence_file', type=str, default=None)
+parser.add_argument('--train_path_to_segmentation_file', type=str, default=None)
+parser.add_argument('--train_path_to_classmap_file', type=str, default=None)
+parser.add_argument('--val_path_to_sequence_file', type=str, default=None)
+parser.add_argument('--val_path_to_segmentation_file', type=str, default=None)
+parser.add_argument('--val_path_to_classmap_file', type=str, default=None)
+parser.add_argument('--path_to_colormap_file', type=str, default=None)
+
+
+# Tensorboard Logs
+parser.add_argument('--save_path_root', type=str, default="./",
+                    help='Path to where the tensorboard logs shall be saved')
+parser.add_argument('--ranged_base_and_new_acc', type=int, default=0,
+                    help='Additional range befor task end, where base and new accuracy are calculated (for smoothing)')
 
 # Architecture and weight-init
 parser.add_argument('-a', '--architecture', default='WRN', help='model architecture (default: WRN)')
@@ -38,6 +66,8 @@ parser.add_argument('--wrn-widen-factor', default=10, type=int,
 parser.add_argument('--wrn-embedding-size', type=int, default=48,
                     help='number of output channels in the first wrn layer if widen factor is not being'
                          'applied to the first layer (default: 48)')
+parser.add_argument('--no-vae', action='store_true', default=False,
+                    help='Flag, disabling vae losses (kl and reconstruction')
 
 # Training hyper-parameters
 parser.add_argument('--epochs', default=120, type=int, help='number of total epochs to run')
@@ -51,6 +81,7 @@ parser.add_argument('-log', '--log-weights', default=False, action='store_true',
 # Resuming training
 parser.add_argument('--resume', default='', type=str, help='path to model to load/resume from(default: none). '
                                                            'Also for stand-alone openset outlier evaluation script')
+parser.add_argument('--no-model-store', action='store_true', default=False)
 
 # Variational parameters
 parser.add_argument('--var-latent-dim', default=60, type=int, help='Dimensionality of latent space')
@@ -64,6 +95,8 @@ parser.add_argument('--visualization-epoch', default=20, type=int, help='number 
 # Continual learning
 parser.add_argument('--incremental-data', default=False, action='store_true',
                     help='Convert dataloaders to class incremental ones')
+parser.add_argument('--is-multiheaded', action='store_true', default=False,
+                    help='Whether to use multiple classification heads')
 parser.add_argument('--incremental-instance', default=False, action='store_true',
                     help='Convert dataloaders to instance incremental ones')
 parser.add_argument('--train-incremental-upper-bound', default=False, action='store_true',
@@ -84,12 +117,16 @@ parser.add_argument('--dataset-order', default='AudioMNIST, MNIST, FashionMNIST'
 parser.add_argument('-genreplay', '--generative-replay', default=False, action='store_true',
                     help='Turn on generative replay for data from old tasks')
 
-parser.add_argument('--use-kl-regularization', default=False, action='store_true',
-                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+#parser.add_argument('--use-kl-regularization', default=False, action='store_true',
+#                    help="Uses the posterior of the previous task as prior (KL(p_t || p_t-1)")
+
+parser.add_argument('--use-si', default=False, action='store_true',
+                    help="Uses the SI framework for parameter regularization")
 
 parser.add_argument('--use-lwf', default=False, action='store_true',
                     help="Uses lwf regularization")
-parser.add_argument('--lmda', default=0.5, help="Lwf regularization strength")
+parser.add_argument('--lmda', type=float, default=0.5, help="Lwf regularization strength")
+
 
 # Open set arguments
 parser.add_argument('--openset-generative-replay', default=False, action='store_true',
@@ -120,3 +157,7 @@ parser.add_argument('--out-channels', default=60, type=int, help='number of outp
 parser.add_argument('--pixel-cnn-channels', default=60, type=int, help='num filters in PixelCNN convs (default: 60)')
 parser.add_argument('--pixel-cnn-layers', default=3, type=int, help='number of PixelCNN layers (default: 3)')
 parser.add_argument('--pixel-cnn-kernel-size', default=7, type=int, help='PixelCNN conv kernel size (default: 7)')
+
+# Debug
+parser.add_argument('--full-conf-mat', action='store_true', default=False,
+                    help='Extends the confusion matrix for multi-headed incremental instance training')   
