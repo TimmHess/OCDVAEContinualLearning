@@ -133,6 +133,7 @@ def validate(Dataset, model, criterion, epoch, iteration, writer, device, save_p
                 recon = torch.sigmoid(recon_output)
                 if (i == (len(Dataset.val_loader) - 2)) and (epoch % args.visualization_epoch == 0):
                     visualize_image_grid(recon, writer, epoch + 1, 'reconstruction_snapshot', save_path)
+                    visualize_image_grid(inp, writer, epoch +1 , 'input_snapshit', save_path)
 
             # update the respective loss values. To be consistent with values reported in the literature we scale
             # our normalized losses back to un-normalized values.
