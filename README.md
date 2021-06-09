@@ -36,60 +36,58 @@ The image-patch datasets used for the experimentation are available [here](https
 #
 ## __Naive Continual Leanring__
 ### Incremental Classes
-	python train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64  --num-base-tasks 1 --num-increment-tasks 1 --save_path_root <path>
+	python train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64  --num-base-tasks 1 --num-increment-tasks 1 --save_path_root <path>
 ### Incremental Lighting / Weather
-	python train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-instance --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64  --num-base-tasks 1 --num-increment-tasks 1 --save_path_root <path>
-
+	python train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-instance --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64  --num-base-tasks 1 --num-increment-tasks 1 --save_path_root <path>
 ### Avalanche 
-	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy Naive --tb_log_dir <path>
+	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy Naive --tb_log_dir <path>
 
 #
 ## __Upper Bound__
 ### Incremental Classes
-	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64  --num-base-tasks 1 --num-increment-tasks 1 --train-incremental-upper-bound --load-task-order 0,1,2,3,4
-
+	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64  --num-base-tasks 1 --num-increment-tasks 1 --train-incremental-upper-bound --load-task-order 0,1,2,3,4
 ### Incremental Lighting / Weather
-	python train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-instance --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 0 --num-increment-tasks --train-incremental-upper-bound
+	python train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-instance --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 0 --num-increment-tasks --train-incremental-upper-bound
 
 #
 ## __OCDVAE__
 ### Incremental Classes
-	python3 train_OCDVAE.py -a DCNN --dataset IncrementalClassificationSet --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 120 --batch-size 64 --incremental-data --num-base-tasks 1 --num-increment-tasks 1 --openset-generative-replay --save_path_root <path>
+	python3 train_OCDVAE.py -a DCNN --dataset IncrementalClassificationSet --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 120 --batch-size 64 --incremental-data --num-base-tasks 1 --num-increment-tasks 1 --openset-generative-replay --save_path_root <path>
 
 ### Incremental Lighting / Weather
-	python3 train_OCDVAE.py -a DCNN --dataset IncrementalInstanceSet --incremental-instance --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 120 --batch-size 64 --num-base-tasks 0 --num-increment-tasks 1 --openset-generative-replay --load-task-order 4,3,2,1,0
+	python3 train_OCDVAE.py -a DCNN --dataset IncrementalInstanceSet --incremental-instance --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 120 --batch-size 64 --num-base-tasks 0 --num-increment-tasks 1 --openset-generative-replay --load-task-order 4,3,2,1,0
 
 #
 ## __LwF__
 ### Incremental Classes
-	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 1 --num-increment-tasks 1 --load-task-order 0,1,2,3 --use-lwf --lmda 0.5
+	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 1 --num-increment-tasks 1 --load-task-order 0,1,2,3 --use-lwf --lmda 0.5
 
 ### Incremental Lighting / Weather
-	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-data --incremental-instance --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 0 --num-increment-tasks 1 --load-task-order 0,1,2,3,4 --full-conf-mat --use-lwf --lmda 0.5
+	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-data --incremental-instance --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 0 --num-increment-tasks 1 --load-task-order 0,1,2,3,4 --full-conf-mat --use-lwf --lmda 0.5
 
 ### Avalanche 
-	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy LwF --tb_log_dir <path>
+	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy LwF --tb_log_dir <path>
 
 #
 ## __SI__
 ### Incremental Classes
-	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 1 --num-increment-tasks 1 --load-task-order 0,1,2,3 --use-si --lmda 1.0	
+	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalClassificationSet --incremental-data --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 1 --num-increment-tasks 1 --load-task-order 0,1,2,3 --use-si --lmda 1.0	
 
 ### Incremental Lighting / Weather
-	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-data --incremental-instance --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 0 --num-increment-tasks 1 --load-task-order 0,1,2,3,4 --full-conf-mat --use-si --lmda 1.0
+	python3 train_OCDVAE.py -a DCNNNoVAE --no-vae --dataset IncrementalInstanceSet --incremental-data --incremental-instance --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --patch-size 64 --epochs 60 --batch-size 64 --num-base-tasks 0 --num-increment-tasks 1 --load-task-order 0,1,2,3,4 --full-conf-mat --use-si --lmda 1.0
 
 ### Avalanche
-	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy SI --tb_log_dir <path>
+	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy SI --tb_log_dir <path>
 
 #
 ## __EWC__ (Avalanche Only)
 ### Incremental Classes / Lighting / Weather
-	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy EWC --tb_log_dir <path>
+	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy EWC --tb_log_dir <path>
 
 #
 ## __GEM__ (Avalanche Only)
 ### Incremental Classes / Lighting / Weather
-	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --labelmap_file labelmap.json --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy GEM --tb_log_dir <path>
+	python train_avalanche.py --train_path_to_root <Train_ImagePatch_Dataset> --val_path_to_root <Val_ImagePatch_Dataset> --num_epochs 60 --batch_size 64 --sequence_order 0 1 2 3 --task_order 0 1 2 3 --cl_strategy GEM --tb_log_dir <path>
 
 
 

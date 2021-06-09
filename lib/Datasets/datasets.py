@@ -1022,17 +1022,17 @@ class IncrementalInstanceSet:
 
     def get_dataset(self, args):
         if args.incremental_data:
-            trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
-                args.patch_size)
+            trainset = ClassificationSequence(args.train_path_to_root,
+                args.patch_size, labelmap_file=args.labelmap_file)
 
-            valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
-                args.patch_size)
+            valset = ClassificationSequence(args.val_path_to_root,
+                args.patch_size, labelmap_file=args.labelmap_file)
         else:
-            trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
-                args.patch_size, use_single_container=True)
+            trainset = ClassificationSequence(args.train_path_to_root,
+                args.patch_size, use_single_container=True, labelmap_file=args.labelmap_file)
 
-            valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
-                args.patch_size, use_single_container=True)
+            valset = ClassificationSequence(args.val_path_to_root,
+                args.patch_size, use_single_container=True, labelmap_file=args.labelmap_file)
         return trainset, valset
 
     def get_dataset_loader(self, batch_size, workers, is_gpu):
@@ -1060,11 +1060,11 @@ class IncrementalClassificationSet:
         return
 
     def get_dataset(self, args):
-        trainset = ClassificationSequence(args.train_path_to_root, args.labelmap_file,
-            args.patch_size, use_single_container=True)
+        trainset = ClassificationSequence(args.train_path_to_root,
+            args.patch_size, use_single_container=True, labelmap_file= args.labelmap_file)
 
-        valset = ClassificationSequence(args.val_path_to_root, args.labelmap_file,
-            args.patch_size, use_single_container=True)
+        valset = ClassificationSequence(args.val_path_to_root,
+            args.patch_size, use_single_container=True,  labelmap_file=args.labelmap_file)
         return trainset, valset
 
     def get_dataset_loader(self, batch_size, workers, is_gpu):

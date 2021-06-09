@@ -14,6 +14,8 @@ import numpy as np
 import cv2
 from PIL import Image
 
+from tqdm import tqdm
+
 
 class ClassificationSequence(data.Dataset):
     def __init__(self, path_to_root, patch_size, labelmap_file=None, use_single_container=False):
@@ -132,7 +134,7 @@ class ClassificationSequence(data.Dataset):
 
 
 class ClassificationSubSequence(data.Dataset):
-    def __init__(self, path_to_root, labelmap_file, patch_size, subsequence_index, is_load_to_ram=False, color_transform=None, is_gdumb=False):
+    def __init__(self, path_to_root, patch_size, subsequence_index, labelmap_file=None, is_load_to_ram=False, color_transform=None, is_gdumb=False):
         self.path_to_root = path_to_root
         self.labelmap_file = labelmap_file
         self.patch_size = patch_size
@@ -188,6 +190,14 @@ class ClassificationSubSequence(data.Dataset):
 
     def __load_label_dict(self, labelmap_file):
         label_dict = {}
+        if(labelmap_file is None):
+            label_dict["BG"] = 0
+            label_dict["Tree"] = 1
+            label_dict["Car"] = 2
+            label_dict["People"] = 3
+            label_dict["Streetlamp"] = 4
+            return label_dict
+
         with open(labelmap_file) as file:
             json_array = json.load(file)
             label_dict = json_array["SegmentationClasses"]
