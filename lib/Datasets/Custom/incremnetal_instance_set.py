@@ -16,7 +16,7 @@ from PIL import Image
 
 
 class ClassificationSequence(data.Dataset):
-    def __init__(self, path_to_root, labelmap_file, patch_size, use_single_container=False):
+    def __init__(self, path_to_root, patch_size, labelmap_file=None, use_single_container=False):
         self.path_to_root = path_to_root
         self.patch_size = patch_size
 
@@ -49,6 +49,15 @@ class ClassificationSequence(data.Dataset):
     
     def __load_label_dict(self, labelmap_file):
         label_dict = {}
+        # Default labelmap_dict
+        if(labelmap_file is None):
+            label_dict["BG"] = 0
+            label_dict["Tree"] = 1
+            label_dict["Car"] = 2
+            label_dict["People"] = 3
+            label_dict["Streetlamp"] = 4
+            return label_dict
+        
         with open(labelmap_file) as file:
             json_array = json.load(file)
             label_dict = json_array["SegmentationClasses"]
@@ -120,6 +129,114 @@ class ClassificationSequence(data.Dataset):
 
     def __len__(self):
         return len(self.sequence_data[self.active_sequence_index])
+
+
+class ClassificationSubSequence(data.Dataset):
+    def __init__(self, path_to_root, labelmap_file, patch_size, subsequence_index, is_load_to_ram=False, color_transform=None, is_gdumb=False):
+        self.path_to_root = path_to_root
+        self.labelmap_file = labelmap_file
+        self.patch_size = patch_size
+        self.subsequence_index = subsequence_index
+        self.is_load_to_ram = is_load_to_ram
+        self.is_gdumb = is_gdumb
+
+        # Transforms
+        self.transforms = self.__init_transform(color_transform)
+        # self.transforms = transforms.Compose([
+        #     transforms.Resize(size=(self.patch_size, self.patch_size)),
+        #     transforms.ToTensor(),
+        #     #custom_transforms.IlluminationInvariant()
+        #     #custom_transforms.LBP(device="cpu", radius=3, points=24)
+        # ])
+
+        self.label_dict = self.__load_label_dict(labelmap_file)
+        self.num_classes = self.__get_num_classes(self.label_dict)
+
+        self.images = []
+        self.targets = [] # Avalanche Requirement
+        # Load data
+        self.__load_data(is_load_to_ram = self.is_load_to_ram)
+        self.targets = np.asarray(self.targets)
+
+        return
+
+    def __init_transform(self, transform_name):
+        r_transforms = None
+        if(transform_name is None):
+            r_transforms = transforms.Compose([
+                transforms.Resize(size=(self.patch_size, self.patch_size)),
+                transforms.ToTensor()
+            ])
+        elif(transform_name == "LBP"):
+            r_transforms = transforms.Compose([
+                transforms.Resize(size=(self.patch_size, self.patch_size)),
+                transforms.ToTensor(),
+                custom_transforms.LBP(device="cpu", radius=3, points=24)
+            ])
+        elif(transform_name == "IlluminantInvariant"):
+            r_transforms = transforms.Compose([
+                transforms.Resize(size=(self.patch_size, self.patch_size)),
+                transforms.ToTensor(),
+                custom_transforms.IlluminationInvariant()
+            ])
+        return r_transforms
+
+    def pil_loader(self, path):
+        with open(path, "rb") as f:
+            img = Image.open(f).convert("RGB")
+        return img
+
+    def __load_label_dict(self, labelmap_file):
+        label_dict = {}
+        with open(labelmap_file) as file:
+            json_array = json.load(file)
+            label_dict = json_array["SegmentationClasses"]
+        return label_dict
+
+    def __get_num_classes(self, label_dict):
+        num_classes = len(np.unique(list(label_dict.values())))
+        return num_classes
+
+    def __load_data(self, is_load_to_ram=False):
+        # Get all sub-sequence dirs from root_path
+        sub_sequences_dirs = sorted([f.name for f in os.scandir(self.path_to_root) if f.is_dir()])
+
+        # For each sub-sequence dir
+        for sub_sequence_dir in tqdm(sub_sequences_dirs):
+            if(not int(sub_sequence_dir) == self.subsequence_index):
+                print("Omitting load for:", sub_sequence_dir)
+                continue
+
+            # Get all sub dirs (a.k.a. classes)
+            class_name_dirs = [f.name for f in os.scandir(self.path_to_root+sub_sequence_dir+"/") if f.is_dir()]
+
+            # For each class get the respective label from labelmap 
+            for class_name in class_name_dirs:
+                label = self.label_dict[class_name]
+                # Read all paths to list (path_to_img, label)
+                path = self.path_to_root + sub_sequence_dir + "/" + class_name + "/"  
+                for file in os.listdir(path):
+                    if(is_load_to_ram):
+                        # Storing image
+                        self.images.append(self.pil_loader(path+file))
+                        self.targets.append(label)
+                    else:
+                        self.images.append(path)
+                        self.targets.append(label)
+        return
+
+    def __getitem__(self, index):
+        img = self.images[index]
+        target = self.targets[index]
+
+        img = self.transforms(img)
+        # Stupid hack for GDumb
+        if(self.is_gdumb):
+            img = img.unsqueeze(0)
+        return img, target
+
+    def __len__(self):
+        return len(self.images)
 
 
 
@@ -306,38 +423,3 @@ class SegmentationSequence(data.Dataset):
 
     def __len__(self):
         return len(self.sequence_data[self.active_sequence_index])
-
-
-
-
-if(__name__ == "__main__"):
-    # path_to_root = "/home/shared/hess/UE4_EndlessRunner/test_light/"
-    # labelmap_file = "/home/shared/hess/UE4_EndlessRunner/test_light/labelmap.json"
-    
-    # dataset = ClassificationSequence(path_to_root, labelmap_file, 64)
-    # print("num_sequences", dataset.num_sequences)
-    # print("len", len(dataset))
-    # img, _ = dataset[0]
-
-    # img = np.asarray(img.cpu().numpy().transpose(1,2,0)*255, dtype=np.uint8)
-    # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    #cv2.imwrite("img.png", img)
-
-
-    train_path_to_color = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Color/0/"
-    train_path_to_seg = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Seg/0/"
-    path_to_sequence = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Sequence.json"
-    path_to_segmentation = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Segmentation.json"
-    path_to_classmap = "/home/shared/hess/UE4_EndlessRunner/Train_IncrementalClasses/Classmap.json"
-
-    dataset = SegmentationSequence(path_to_color=train_path_to_color, 
-                            path_to_seg=train_path_to_seg, 
-                            sequence_file=path_to_sequence, 
-                            segmentation_file=path_to_segmentation, 
-                            classmap_file=path_to_classmap, 
-                            patch_size=[320, 180], 
-                            use_single_container=False)
-    
-    img, target = dataset[0]
-    print(target.shape)
-    print(np.unique(target))
